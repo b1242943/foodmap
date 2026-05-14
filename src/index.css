@@ -1,0 +1,12 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #060a0e;
+  color: #dce8f5;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  overflow: hidden;
+}
