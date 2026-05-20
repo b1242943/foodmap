@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Papa from "papaparse";
+import { loadSnapCSV, loadFeedingAmericaCSV, fetchOverpassData, classifyNode, getSnapNearby, getFoodbanksNearby, computeScore, haversineDistance } from "./utils/dataFetchers";
 
 const layerColors = {
   markets: { color: "#059669", type: "FARMERS MARKET / GROCERY" },
@@ -20,118 +21,6 @@ function makeIcon(color) {
   });
 }
 
-// Load and cache the SNAP CSV once
-let snapDataCache = null;
-async function loadSnapCSV() {
-  if (snapDataCache) return snapDataCache;
-  return new Promise((resolve, reject) => {
-    Papa.parse("/snap_retailers.csv", {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        snapDataCache = results.data;
-        resolve(snapDataCache);
-      },
-      error: reject,
-    });
-  });
-}
-
-function getSnapNearby(snapData, lat, lon, radiusMeters = 5000) {
-  const R = 6371000;
-  return snapData.filter((row) => {
-    const rlat = parseFloat(row.Latitude);
-    const rlon = parseFloat(row.Longitude);
-    if (isNaN(rlat) || isNaN(rlon)) return false;
-    const dLat = ((rlat - lat) * Math.PI) / 180;
-    const dLon = ((rlon - lon) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat * Math.PI) / 180) *
-        Math.cos((rlat * Math.PI) / 180) *
-        Math.sin(dLon / 2) ** 2;
-    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return dist <= radiusMeters;
-  });
-}
-
-async function fetchOverpassData(lat, lon) {
-  const radius = 5000;
-  const query = `[out:json][timeout:90];(
-    nwr["shop"="supermarket"](around:${radius},${lat},${lon});
-    nwr["shop"="grocery"](around:${radius},${lat},${lon});
-    nwr["shop"="greengrocer"](around:${radius},${lat},${lon});
-    nwr["amenity"="marketplace"](around:${radius},${lat},${lon});
-    nwr["amenity"="food_bank"](around:${radius},${lat},${lon});
-    nwr["amenity"="social_facility"](around:${radius},${lat},${lon});
-    nwr["social_facility"="food_bank"](around:${radius},${lat},${lon});
-    nwr["social_facility"="soup_kitchen"](around:${radius},${lat},${lon});
-    nwr["payment:ebt"="yes"](around:${radius},${lat},${lon});
-    nwr["payment:snap"="yes"](around:${radius},${lat},${lon});
-    nwr["payment:food_stamps"="yes"](around:${radius},${lat},${lon});
-  );out center;`;
-
-  const res = await fetch(
-    `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
-  );
-  const data = await res.json();
-  return data.elements || [];
-}
-
-function classifyNode(node) {
-  const t = node.tags || {};
-  const name = (t.name || "").toLowerCase();
-
-  if (
-    t["payment:ebt"] === "yes" ||
-    t["payment:snap"] === "yes" ||
-    t["payment:food_stamps"] === "yes"
-  ) {
-    return "snap";
-  }
-
-  if (
-    t.amenity === "food_bank" ||
-    t.social_facility === "food_bank" ||
-    t.social_facility === "soup_kitchen" ||
-    t.amenity === "social_facility" ||
-    name.includes("pantry") ||
-    name.includes("food bank") ||
-    name.includes("soup kitchen") ||
-    name.includes("hunger") ||
-    name.includes("salvation army") ||
-    name.includes("st. vincent") ||
-    name.includes("food shelf")
-  ) {
-    return "pantries";
-  }
-
-  return "markets";
-}
-
-function computeScore(counts) {
-  const marketScore = Math.min(100, counts.markets * 12);
-  const pantryScore = Math.min(100, counts.pantries * 20);
-  const snapScore = Math.min(100, counts.snap * 25);
-  const composite = Math.round(
-    marketScore * 0.5 + pantryScore * 0.3 + snapScore * 0.2
-  );
-  return { composite, marketScore, pantryScore, snapScore };
-}
-
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 3958.8;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
-}
-
 export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -142,6 +31,9 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
   useEffect(() => {
     loadSnapCSV().catch((err) =>
       console.error("Failed to preload SNAP CSV:", err)
+    );
+    loadFeedingAmericaCSV().catch((err) =>
+      console.error("Failed to preload FA CSV:", err)
     );
   }, []);
 
@@ -180,7 +72,7 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
       const countryParam = hasCountry ? "" : "&countrycodes=us";
 
       const geoRes = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1${countryParam}`
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&addressdetails=1&limit=1${countryParam}`
       );
       const geoData = await geoRes.json();
       if (!geoData.length) {
@@ -193,14 +85,48 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
       const lon = parseFloat(geoData[0].lon);
       const label = geoData[0].display_name.split(",").slice(0, 2).join(" ·");
 
-      map.flyTo([lat, lon], 14, { duration: 1.5 });
+      let searchBbox = null;
+      let overpassBbox = null;
+
+      if (geoData[0].boundingbox) {
+        const bbox = geoData[0].boundingbox;
+        const southLat = parseFloat(bbox[0]);
+        const northLat = parseFloat(bbox[1]);
+        const westLon = parseFloat(bbox[2]);
+        const eastLon = parseFloat(bbox[3]);
+        
+        const latDiff = Math.abs(northLat - southLat);
+        const lonDiff = Math.abs(eastLon - westLon);
+        
+        if (latDiff > 0.1 || lonDiff > 0.1) {
+          map.flyTo([lat, lon], 14, { duration: 1.5 });
+        } else {
+          const bounds = [
+            [southLat, westLon],
+            [northLat, eastLon]
+          ];
+          const targetZoom = map.getBoundsZoom(bounds);
+          if (targetZoom < 13) {
+            map.flyTo([lat, lon], 13, { duration: 1.5 });
+          } else {
+            map.flyToBounds(bounds, { duration: 1.5, maxZoom: 16 });
+          }
+          searchBbox = [southLat, westLon, northLat, eastLon];
+          overpassBbox = `${southLat},${westLon},${northLat},${eastLon}`;
+        }
+      } else {
+        map.flyTo([lat, lon], 14, { duration: 1.5 });
+      }
       Object.values(layers).forEach((lg) => lg.clearLayers());
 
       const counts = { markets: 0, pantries: 0, snap: 0, desert: 0 };
       const resources = [];
 
+      const isZipSearch = /^\d{5}$/.test(searchQuery.trim());
+      const searchRadius = isZipSearch ? 2500 : 5000;
+
       // Overpass: markets + pantries + EBT-tagged locations
-      const nodes = await fetchOverpassData(lat, lon);
+      const nodes = await fetchOverpassData(lat, lon, isZipSearch ? null : overpassBbox, searchRadius);
       nodes.forEach((node) => {
         const itemLat = node.lat || node.center?.lat;
         const itemLon = node.lon || node.center?.lon;
@@ -209,10 +135,12 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
         const key = classifyNode(node);
         const { color, type } = layerColors[key];
         const name = node.tags?.name || "Unnamed Location";
+        
+        if (!node.processedAddress && name === "Unnamed Location") return;
+
         const hours = node.tags?.opening_hours || "";
         const phone = node.tags?.phone || "";
-        const detail =
-          [hours, phone].filter(Boolean).join(" · ") || "No details listed";
+        const detail = node.processedAddress || "Address not available";
         const distance = haversineDistance(lat, lon, itemLat, itemLon);
 
         L.marker([itemLat, itemLon], { icon: makeIcon(color) })
@@ -238,7 +166,7 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
 
       // CSV: SNAP / EBT retailers from USDA FNS registry
       const snapData = await loadSnapCSV();
-      const nearbySnap = getSnapNearby(snapData, lat, lon, 5000);
+      const nearbySnap = getSnapNearby(snapData, lat, lon, searchRadius, searchBbox, isZipSearch ? searchQuery.trim() : null);
 
       nearbySnap.forEach((row) => {
         const rlat = parseFloat(row.Latitude);
@@ -269,6 +197,47 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
           distance: parseFloat(distance),
           lat: rlat,
           lon: rlon,
+        });
+      });
+
+      // CSV: Feeding America Foodbanks
+      const faData = await loadFeedingAmericaCSV();
+      const countyName = geoData[0].address?.county || geoData[0].display_name.split(',').find(p => p.includes('County'))?.trim() || "";
+      const nearbyFA = getFoodbanksNearby(faData, countyName);
+
+      nearbyFA.forEach((row) => {
+        const rlat = parseFloat(row.Latitude);
+        const rlon = parseFloat(row.Longitude);
+        const name = row.Name || "Feeding America Food Bank";
+        const address = row.Address || "";
+        const distance = isNaN(rlat) || isNaN(rlon) ? null : haversineDistance(lat, lon, rlat, rlon);
+        const { color, type } = layerColors.pantries;
+
+        if (rlat && rlon) {
+          L.marker([rlat, rlon], { icon: makeIcon(color) })
+            .bindPopup(
+              `<div style="font-family:system-ui,-apple-system,sans-serif;color:#111827;min-width:200px;padding:4px">
+                <div style="font-weight:800;font-size:18px;margin-bottom:8px;line-height:1.2">${name}</div>
+                <div style="color:${color};font-weight:700;font-size:12px;letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase">${type}</div>
+                <div style="color:#374151;font-size:16px;line-height:1.5">${address}</div>
+              </div>`
+            )
+            .addTo(layers.pantries);
+        }
+
+        counts.pantries++;
+        resources.push({
+          name,
+          type: "pantries",
+          detail: address,
+          distance: distance ? parseFloat(distance) : null,
+          lat: rlat,
+          lon: rlon,
+          source: 'feeding_america',
+          phone: row.Phone,
+          attributes: row.Services ? row.Services.split(',') : [],
+          website: row.Website,
+          organization: row.Name
         });
       });
 

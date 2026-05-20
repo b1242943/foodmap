@@ -532,7 +532,7 @@ export default function HomePage({ onEnter }) {
       {/* Nav */}
       <nav className="fm-nav">
         <div className="fm-logo">
-          <div className="fm-logo-dot" />
+          <span style={{ fontSize: "24px" }}>🍃</span>
           FoodMap
         </div>
         <button className="fm-nav-cta" onClick={onEnter}>
@@ -756,7 +756,7 @@ export default function HomePage({ onEnter }) {
       {/* Footer */}
       <footer className="fm-footer">
         <div className="fm-logo">
-          <div className="fm-logo-dot" />
+          <span style={{ fontSize: "24px" }}>🍃</span>
           FoodMap
         </div>
         <div className="fm-footer-sources">

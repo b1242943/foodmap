@@ -2,6 +2,10 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import FoodMap from "./Map";
 import HomePage from "./HomePage";
 import MapExplorer from "./MapExplorer";
+import ResourceListContainer from "./components/ResourceListContainer";
+import ScoreSummary from "./components/ScoreSummary";
+import ScoreDetailModal from "./components/ScoreDetailModal";
+import ResourceDetailModal from "./components/ResourceDetailModal";
 
 const DEFAULT_STATS = {
   label: "ZIP 53703 · Madison, WI",
@@ -204,7 +208,10 @@ function buildQuery(bbox) {
     nwr["shop"="supermarket"](${b});
     nwr["shop"="grocery"](${b});
     nwr["amenity"="food_bank"](${b});
-    nwr["amenity"="social_facility"]["social_facility"="food_bank"](${b});
+    nwr["amenity"="social_facility"]["social_facility"="food_bank"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
+    nwr["amenity"="social_facility"]["social_facility"="food_pantry"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
+    nwr["social_facility"="food_bank"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
+    nwr["social_facility"="soup_kitchen"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
     nwr["government"="social_services"](${b});
   );out center;`;
 }
@@ -254,7 +261,7 @@ function CompareView() {
         const cacheKey = `overpass_${lat.toFixed(3)}_${lon.toFixed(3)}`;
         const cached = sessionStorage.getItem(cacheKey);
         let elements = [];
-        
+
         if (cached) {
           elements = JSON.parse(cached);
         } else {
@@ -268,7 +275,7 @@ function CompareView() {
             console.warn("Could not cache overpass data", e);
           }
         }
-        
+
         const counts = { markets: 0, pantries: 0, snap: 0 };
         elements.forEach((n) => counts[classifyNode(n.tags)]++);
         const scores = computeScore(counts);
@@ -296,11 +303,11 @@ function CompareView() {
   const metrics =
     results[0] && results[1]
       ? [
-          ["Overall Score", results[0].score, results[1].score],
-          ["Grocery Markets", results[0].counts.markets, results[1].counts.markets],
-          ["Food Pantries", results[0].counts.pantries, results[1].counts.pantries],
-          ["SNAP / EBT Retailers", results[0].counts.snap, results[1].counts.snap],
-        ]
+        ["Overall Score", results[0].score, results[1].score],
+        ["Grocery Markets", results[0].counts.markets, results[1].counts.markets],
+        ["Food Pantries", results[0].counts.pantries, results[1].counts.pantries],
+        ["SNAP / EBT Retailers", results[0].counts.snap, results[1].counts.snap],
+      ]
       : [];
 
   return (
@@ -379,6 +386,13 @@ export default function App() {
   const [stats, setStats] = useState(DEFAULT_STATS);
   const [loading, setLoading] = useState(false);
   const [activeView, setActiveView] = useState("Dashboard");
+  const [selectedResourceType, setSelectedResourceType] = useState('all');
+  const [showScoringModal, setShowScoringModal] = useState(false);
+  const [selectedResource, setSelectedResource] = useState(null);
+
+  const filteredResources = selectedResourceType === 'all' 
+    ? (stats.resources || [])
+    : (stats.resources || []).filter(r => r.type === selectedResourceType);
 
   const handleSearch = () => {
     const q = input.trim();
@@ -417,9 +431,18 @@ export default function App() {
     <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gridTemplateRows: "80px 1fr", height: "100vh", background: "var(--bg-primary)", overflow: "hidden" }}>
       {/* Top Header */}
       <div style={{ gridColumn: "1 / -1", background: "var(--bg-primary)", borderBottom: "2px solid var(--border-color)", display: "flex", alignItems: "center", gap: 32, padding: "0 32px", zIndex: 100 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--color-market)", flexShrink: 0 }} />
-          <span style={{ fontSize: "var(--font-size-xl)", fontWeight: 600, color: "var(--text-primary)" }}>FoodMap</span>
+        <div style={{ flexShrink: 0 }}>
+          <span style={{ 
+            fontSize: "var(--font-size-xl)", 
+            fontWeight: 600, 
+            color: "var(--text-primary)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
+            <span style={{ fontSize: "28px" }}>🍃</span>
+            FoodMap
+          </span>
         </div>
 
         <div style={{ flex: 1, maxWidth: 600, display: "flex", gap: 8 }}>
@@ -477,24 +500,18 @@ export default function App() {
           })}
         </div>
 
-        {/* Data Sources Info Box for Transparency */}
-        <div style={{ marginTop: "auto", padding: "16px", background: "var(--bg-primary)", border: "1px solid var(--border-color)", borderRadius: "var(--border-radius)" }}>
-          <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 700, color: "var(--text-secondary)", marginBottom: 8 }}>Information Source</div>
-          <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", lineHeight: 1.5 }}>
-            Data is provided by public sources including OpenStreetMap and government registries.
-          </div>
-        </div>
+
       </div>
 
       {/* Main Content Area */}
       <div style={{ overflow: "hidden", position: "relative" }}>
         <div style={{ display: "flex", width: `${VIEWS.length * 100}%`, height: "100%", transform: `translateX(-${viewIndex * (100 / VIEWS.length)}%)`, transition: "transform 0.4s ease" }}>
-          
+
           {/* Dashboard View */}
           <div style={{ width: `${100 / VIEWS.length}%`, height: "100%", display: "flex", flexDirection: "column", flexShrink: 0, padding: 32, overflowY: "auto" }}>
             <h1 style={{ fontSize: "var(--font-size-2xl)", fontFamily: "var(--font-display)", fontWeight: 700, marginBottom: 8, color: "var(--text-primary)" }}>Location Dashboard</h1>
             <div style={{ fontSize: "var(--font-size-lg)", color: "var(--text-secondary)", marginBottom: 32 }}>Viewing results for: <strong style={{ color: "var(--text-primary)" }}>{stats.label}</strong></div>
-            
+
             <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 32, alignItems: "start" }}>
               {/* Left Column: Stats */}
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -516,7 +533,7 @@ export default function App() {
                 <div style={{ background: "var(--bg-secondary)", padding: 24, borderRadius: "var(--border-radius)", border: "1px solid var(--border-color)" }}>
                   <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>Resource Counts</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    {[["Grocery Markets", stats.markets, "var(--color-market)"], ["Food Pantries", stats.pantries, "var(--color-pantry)"], ["SNAP / EBT Retailers", stats.snap, "var(--color-snap)"]].map(([label, val, color]) => (
+                    {[["Grocery Markets", stats.markets, "var(--color-market)"], ["Food Insecurity Help", stats.pantries, "var(--color-pantry)"], ["SNAP / EBT Retailers", stats.snap, "var(--color-snap)"]].map(([label, val, color]) => (
                       <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 12, borderBottom: "1px solid var(--border-color)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div style={{ width: 16, height: 16, borderRadius: "50%", background: color }} />
@@ -525,6 +542,9 @@ export default function App() {
                         <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)" }}>{val}</div>
                       </div>
                     ))}
+                  </div>
+                  <div style={{ marginTop: 24, fontSize: "11px", color: "var(--text-muted)", textAlign: "center", lineHeight: 1.4 }}>
+                    Food insecurity resources provided by Feeding America member organizations, verified and updated regularly.
                   </div>
                 </div>
               </div>
@@ -553,20 +573,8 @@ export default function App() {
                   {loading ? (
                     <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)", fontSize: "var(--font-size-lg)" }}>Loading nearby resources...</div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {(stats.resources || []).slice(0, 5).map((r, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px", background: "var(--bg-secondary)", borderRadius: "var(--border-radius)" }}>
-                          <Icon.Dot color={TYPE_COLORS[r.type]} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text-primary)" }}>{r.name}</div>
-                            <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>{r.detail}</div>
-                          </div>
-                          <div style={{ fontSize: "var(--font-size-base)", fontWeight: 600, color: "var(--text-secondary)" }}>{r.distance} mi</div>
-                        </div>
-                      ))}
-                      {stats.resources?.length === 0 && (
-                        <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px 0" }}>No resources found.</div>
-                      )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: "500px", overflowY: "auto", paddingRight: 8 }}>
+                      <ResourceListContainer resources={filteredResources} loading={loading} onSelectResource={setSelectedResource} />
                     </div>
                   )}
                 </div>
@@ -590,6 +598,16 @@ export default function App() {
           </div>
         </div>
       </div>
+      <ScoreDetailModal 
+        isOpen={showScoringModal} 
+        score={stats.score} 
+        bars={stats.bars} 
+        onClose={() => setShowScoringModal(false)} 
+      />
+      <ResourceDetailModal 
+        resource={selectedResource} 
+        onClose={() => setSelectedResource(null)} 
+      />
     </div>
   );
 }

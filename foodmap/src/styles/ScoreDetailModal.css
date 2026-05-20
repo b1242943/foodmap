@@ -1,0 +1,107 @@
+.score-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(17, 24, 39, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.score-modal {
+  background: var(--bg-primary);
+  border-radius: var(--border-radius);
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  animation: modal-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.score-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.score-modal__header h2 {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.score-modal__close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  transition: color 0.2s;
+}
+.score-modal__close:hover {
+  color: var(--text-primary);
+}
+
+.score-modal__content {
+  padding: 24px;
+}
+
+.score-modal__desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.score-modal__factors {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.breakdown-factor {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.breakdown-factor__label {
+  width: 90px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.breakdown-factor__track {
+  flex: 1;
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.breakdown-factor__fill {
+  height: 100%;
+  border-radius: 100px;
+}
+
+.breakdown-factor__val {
+  width: 32px;
+  text-align: right;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
