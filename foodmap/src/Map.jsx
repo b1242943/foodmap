@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useMapStore } from "./store/useMapStore";
 import Papa from "papaparse";
 import { loadSnapCSV, loadFeedingAmericaCSV, fetchOverpassData, classifyNode, getSnapNearby, getFoodbanksNearby, computeScore, haversineDistance } from "./utils/dataFetchers";
 
@@ -21,7 +22,11 @@ function makeIcon(color) {
   });
 }
 
-export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
+export default function Map() {
+  const searchQuery = useMapStore((state) => state.searchQuery);
+  const setStats = useMapStore((state) => state.setStats);
+  const setLoading = useMapStore((state) => state.setLoading);
+
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef({});
@@ -61,11 +66,12 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
   useEffect(() => {
     if (!searchQuery || !mapRef.current) return;
 
+    let isCurrent = true;
     const map = mapRef.current;
     const layers = layersRef.current;
 
     async function load() {
-      onLoading?.(true);
+      setLoading(true);
 
       // US-first geocoding: lock to US unless user specifies a country with a comma
       const hasCountry = searchQuery.includes(",");
@@ -75,9 +81,10 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&addressdetails=1&limit=1${countryParam}`
       );
       const geoData = await geoRes.json();
+      if (!isCurrent) return;
       if (!geoData.length) {
         alert("Location not found.");
-        onLoading?.(false);
+        setLoading(false);
         return;
       }
 
@@ -94,10 +101,10 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
         const northLat = parseFloat(bbox[1]);
         const westLon = parseFloat(bbox[2]);
         const eastLon = parseFloat(bbox[3]);
-        
+
         const latDiff = Math.abs(northLat - southLat);
         const lonDiff = Math.abs(eastLon - westLon);
-        
+
         if (latDiff > 0.1 || lonDiff > 0.1) {
           map.flyTo([lat, lon], 14, { duration: 1.5 });
         } else {
@@ -127,6 +134,7 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
 
       // Overpass: markets + pantries + EBT-tagged locations
       const nodes = await fetchOverpassData(lat, lon, isZipSearch ? null : overpassBbox, searchRadius);
+      if (!isCurrent) return;
       nodes.forEach((node) => {
         const itemLat = node.lat || node.center?.lat;
         const itemLon = node.lon || node.center?.lon;
@@ -135,7 +143,7 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
         const key = classifyNode(node);
         const { color, type } = layerColors[key];
         const name = node.tags?.name || "Unnamed Location";
-        
+
         if (!node.processedAddress && name === "Unnamed Location") return;
 
         const hours = node.tags?.opening_hours || "";
@@ -166,6 +174,7 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
 
       // CSV: SNAP / EBT retailers from USDA FNS registry
       const snapData = await loadSnapCSV();
+      if (!isCurrent) return;
       const nearbySnap = getSnapNearby(snapData, lat, lon, searchRadius, searchBbox, isZipSearch ? searchQuery.trim() : null);
 
       nearbySnap.forEach((row) => {
@@ -202,6 +211,7 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
 
       // CSV: Feeding America Foodbanks
       const faData = await loadFeedingAmericaCSV();
+      if (!isCurrent) return;
       const countyName = geoData[0].address?.county || geoData[0].display_name.split(',').find(p => p.includes('County'))?.trim() || "";
       const nearbyFA = getFoodbanksNearby(faData, countyName);
 
@@ -245,7 +255,7 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
 
       const score = computeScore(counts);
 
-      onStatsUpdate?.({
+      setStats({
         label,
         lat,
         lon,
@@ -259,15 +269,21 @@ export default function Map({ searchQuery, onStatsUpdate, onLoading }) {
         snapScore: score.snapScore,
       });
 
-      onLoading?.(false);
+      setLoading(false);
     }
 
     load().catch((err) => {
       console.error(err);
-      alert("Error fetching data. Try again.");
-      onLoading?.(false);
+      if (isCurrent) {
+        alert("Error fetching data. Try again.");
+        setLoading(false);
+      }
     });
-  }, [searchQuery, onLoading, onStatsUpdate]);
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [searchQuery]);
 
   return (
     <div

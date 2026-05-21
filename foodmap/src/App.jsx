@@ -1,11 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import FoodMap from "./Map";
 import HomePage from "./HomePage";
-import MapExplorer from "./MapExplorer";
+import { useMapStore } from "./store/useMapStore";
+import ExecutiveReport from "./ExecutiveReport";
 import ResourceListContainer from "./components/ResourceListContainer";
 import ScoreSummary from "./components/ScoreSummary";
 import ScoreDetailModal from "./components/ScoreDetailModal";
 import ResourceDetailModal from "./components/ResourceDetailModal";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const DEFAULT_STATS = {
   label: "ZIP 53703 · Madison, WI",
@@ -24,7 +26,7 @@ const DEFAULT_STATS = {
   },
 };
 
-const VIEWS = ["Dashboard", "Map Explorer", "Resources", "Compare Zones"];
+const VIEWS = ["Dashboard", "Executive Report", "Resources", "Compare Zones"];
 const TYPE_COLORS = { markets: "var(--color-market)", pantries: "var(--color-pantry)", snap: "var(--color-snap)", desert: "var(--color-desert)" };
 const TYPE_LABELS = { markets: "Grocery Market", pantries: "Food Pantry", snap: "SNAP / EBT Retailer" };
 
@@ -75,7 +77,7 @@ const Icon = {
 
 const NAV_ITEMS = [
   { label: "Dashboard", Icon: Icon.Dashboard },
-  { label: "Map Explorer", Icon: Icon.MapIcon },
+  { label: "Executive Report", Icon: Icon.MapIcon },
   { label: "Resources", Icon: Icon.Resources },
   { label: "Compare Zones", Icon: Icon.Compare },
 ];
@@ -103,7 +105,8 @@ function ScoreBadge({ score }) {
   );
 }
 
-function ResourcesView({ stats }) {
+function ResourcesView() {
+  const stats = useMapStore((state) => state.stats);
   const [filter, setFilter] = useState("all");
   const [renderCount, setRenderCount] = useState(20);
   const observerRef = useRef();
@@ -382,10 +385,13 @@ function CompareView() {
 export default function App() {
   const [showLanding, setShowLanding] = useState(true);
   const [input, setInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [stats, setStats] = useState(DEFAULT_STATS);
-  const [loading, setLoading] = useState(false);
-  const [activeView, setActiveView] = useState("Dashboard");
+  const searchQuery = useMapStore((state) => state.searchQuery);
+  const setSearchQuery = useMapStore((state) => state.setSearchQuery);
+  const stats = useMapStore((state) => state.stats);
+  const loading = useMapStore((state) => state.loading);
+  const activeView = useMapStore((state) => state.activeView);
+  const setActiveView = useMapStore((state) => state.setActiveView);
+
   const [selectedResourceType, setSelectedResourceType] = useState('all');
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [selectedResource, setSelectedResource] = useState(null);
@@ -401,34 +407,19 @@ export default function App() {
     setSearchQuery(q);
   };
 
-  const handleStatsUpdate = useCallback((newStats) => {
-    setStats((prev) => ({
-      ...prev,
-      label: newStats.label ?? prev.label,
-      lat: newStats.lat ?? prev.lat,
-      lon: newStats.lon ?? prev.lon,
-      score: newStats.score ?? prev.score,
-      markets: newStats.markets ?? prev.markets,
-      pantries: newStats.pantries ?? prev.pantries,
-      snap: newStats.snap ?? prev.snap,
-      resources: newStats.resources ?? prev.resources,
-      bars: {
-        ...prev.bars,
-        Proximity: { ...prev.bars.Proximity, val: newStats.marketScore ?? prev.bars.Proximity.val },
-        Pantries: { ...prev.bars.Pantries, val: newStats.pantryScore ?? prev.bars.Pantries.val },
-        SNAP: { ...prev.bars.SNAP, val: newStats.snapScore ?? prev.bars.SNAP.val },
-      },
-    }));
-  }, []);
-
   const viewIndex = VIEWS.indexOf(activeView);
 
   if (showLanding) {
-    return <HomePage onEnter={() => setShowLanding(false)} />;
+    return (
+      <ErrorBoundary>
+        <HomePage onEnter={() => setShowLanding(false)} />
+      </ErrorBoundary>
+    );
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gridTemplateRows: "80px 1fr", height: "100vh", background: "var(--bg-primary)", overflow: "hidden" }}>
+    <ErrorBoundary>
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gridTemplateRows: "80px 1fr", height: "100vh", background: "var(--bg-primary)", overflow: "hidden" }}>
       {/* Top Header */}
       <div style={{ gridColumn: "1 / -1", background: "var(--bg-primary)", borderBottom: "2px solid var(--border-color)", display: "flex", alignItems: "center", gap: 32, padding: "0 32px", zIndex: 100 }}>
         <div style={{ flexShrink: 0 }}>
@@ -552,7 +543,7 @@ export default function App() {
               {/* Right Column: Mini Map & Top Resources */}
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 <div style={{ height: 400, borderRadius: "var(--border-radius)", overflow: "hidden", border: "2px solid var(--border-color)", position: "relative" }}>
-                  <FoodMap searchQuery={searchQuery} onStatsUpdate={handleStatsUpdate} onLoading={setLoading} />
+                  <FoodMap />
                   <div style={{ position: "absolute", top: 16, right: 16, zIndex: 1000, background: "var(--bg-primary)", padding: 12, borderRadius: "var(--border-radius)", border: "2px solid var(--border-color)", boxShadow: "var(--shadow-md)", display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 700, color: "var(--text-secondary)", marginBottom: 4 }}>MAP LEGEND</div>
                     {Object.entries(TYPE_LABELS).map(([key, label]) => (
@@ -582,14 +573,14 @@ export default function App() {
             </div>
           </div>
 
-          {/* Map Explorer View */}
+          {/* Executive Report View */}
           <div style={{ width: `${100 / VIEWS.length}%`, height: "100%", flexShrink: 0, position: "relative", display: "flex", background: "var(--bg-secondary)" }}>
-            <MapExplorer stats={stats} />
+            <ExecutiveReport />
           </div>
 
           {/* Resources View */}
           <div style={{ width: `${100 / VIEWS.length}%`, height: "100%", flexShrink: 0 }}>
-            <ResourcesView stats={stats} />
+            <ResourcesView />
           </div>
 
           {/* Compare View */}
@@ -609,5 +600,6 @@ export default function App() {
         onClose={() => setSelectedResource(null)} 
       />
     </div>
+    </ErrorBoundary>
   );
 }

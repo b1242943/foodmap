@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
+*:focus-visible { outline: 3px solid #2563eb !important; outline-offset: 2px !important; }
+
 :root {
   /* High contrast colors for legibility */
   --bg-primary: #ffffff;
@@ -130,3 +132,59 @@ input::placeholder {
 .bg-market-light { background-color: var(--color-market-light); }
 .bg-pantry-light { background-color: var(--color-pantry-light); }
 .bg-snap-light { background-color: var(--color-snap-light); }
+
+/* Glowing animations for Leaflet Census Tract polygons */
+.leaflet-zoom-animated {
+  overflow: visible !important;
+}
+
+.glowing-critical-tract {
+  stroke-dasharray: 6 4;
+  animation: pulse-critical 2.5s infinite alternate;
+  pointer-events: auto;
+  transition: filter 0.3s ease, fill-opacity 0.3s ease, stroke-width 0.3s ease;
+}
+
+@keyframes pulse-critical {
+  from {
+    filter: drop-shadow(0 0 2px #f97316);
+    fill-opacity: 0.45 !important;
+    stroke-opacity: 0.70 !important;
+    stroke-width: 2.0px !important;
+  }
+  to {
+    filter: drop-shadow(0 0 10px #ea580c) drop-shadow(0 0 4px #ea580c);
+    fill-opacity: 0.70 !important;
+    stroke-opacity: 1.00 !important;
+    stroke-width: 4.0px !important;
+  }
+}
+
+.glowing-covered-tract {
+  pointer-events: auto;
+  transition: filter 0.3s ease, fill-opacity 0.3s ease, stroke-width 0.3s ease;
+  animation: pulse-covered 2.5s infinite alternate;
+}
+
+@keyframes pulse-covered {
+  from {
+    filter: drop-shadow(0 0 2px #3b82f6);
+    fill-opacity: 0.20 !important;
+    stroke-opacity: 0.50 !important;
+    stroke-width: 1.0px !important;
+  }
+  to {
+    filter: drop-shadow(0 0 8px #2563eb) drop-shadow(0 0 3px #2563eb);
+    fill-opacity: 0.35 !important;
+    stroke-opacity: 0.80 !important;
+    stroke-width: 2.5px !important;
+  }
+}
+
+.glowing-covered-tract:hover {
+  filter: drop-shadow(0 0 8px #2563eb) drop-shadow(0 0 3px #2563eb) !important;
+  fill-opacity: 0.45 !important;
+  stroke-opacity: 1.00 !important;
+  stroke-width: 3.5px !important;
+}
+

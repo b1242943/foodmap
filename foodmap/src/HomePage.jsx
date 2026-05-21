@@ -97,6 +97,8 @@ const styles = `
     line-height: 1.15;
     color: #111827;
     margin-bottom: 1.25rem;
+    padding-left: 4px;
+    margin-left: -4px;
   }
 
   .fm-hero h1 em {
@@ -552,9 +554,7 @@ export default function HomePage({ onEnter }) {
               Where your community <em>gets</em> its food
             </h1>
             <p>
-              FoodMap visualizes grocery markets, food pantries, and SNAP
-              retailers near any US location — and scores food access so
-              communities and officials can act on what they find.
+              FoodMap is an open-access tool that cross-references live U.S. Census poverty data with active SNAP and pantry registries to highlight high-need food deserts. Built to help organizers target outreach and secure grants. 100% free to use.
             </p>
             <div className="fm-hero-actions">
               <button className="fm-btn-primary" onClick={onEnter}>
@@ -574,6 +574,7 @@ export default function HomePage({ onEnter }) {
           </div>
 
           {/* Mini dashboard preview */}
+          {/* // TODO: Insert new ExecutiveReport.png so the developer can drop in a screenshot of the new map. */}
           <div className="fm-hero-visual fm-animate fm-delay-2">
             <div className="fm-mini-score">
               <div className="fm-mini-score-label">Overall Score · Far Rockaway, NY</div>
@@ -623,8 +624,8 @@ export default function HomePage({ onEnter }) {
             <div className="fm-stat-label">States covered across the US</div>
           </div>
           <div className="fm-stat">
-            <div className="fm-stat-number">3</div>
-            <div className="fm-stat-label">Data sources cross-referenced</div>
+            <div className="fm-stat-number">4</div>
+            <div className="fm-stat-label">Data sources cross-referenced, including live U.S. Census Bureau Demographics.</div>
           </div>
           <div className="fm-stat">
             <div className="fm-stat-number">Real‑time</div>
@@ -658,8 +659,8 @@ export default function HomePage({ onEnter }) {
             },
             {
               n: "03",
-              title: "Understand the score",
-              desc: "A weighted access score shows how well-served a community is — and where the gaps are.",
+              title: "Identify Critical Gaps",
+              desc: "Switch to the Executive Report to reveal accessible, color-coded census tracts that instantly highlight high-poverty zones with zero food resources.",
             },
           ].map((s) => (
             <div className="fm-how-card" key={s.n}>
@@ -708,9 +709,9 @@ export default function HomePage({ onEnter }) {
             <div className="fm-users">
               {[
                 {
-                  icon: "🏘️",
-                  title: "Community members",
-                  desc: "Find the closest open grocery store, pantry, or SNAP retailer near home.",
+                  icon: "🤝",
+                  title: "Nonprofits & Organizers",
+                  desc: "Identify critical gap zones, optimize mobile food pantries, and export data-backed maps for grant applications.",
                 },
                 {
                   icon: "🏛️",
@@ -718,9 +719,9 @@ export default function HomePage({ onEnter }) {
                   desc: "Identify underserved zip codes and make the case for resource investment.",
                 },
                 {
-                  icon: "🤝",
-                  title: "Nonprofits",
-                  desc: "Understand where pantry coverage is thin and plan outreach accordingly.",
+                  icon: "🏘️",
+                  title: "Community members",
+                  desc: "Find the closest open grocery store, pantry, or SNAP retailer near home.",
                 },
                 {
                   icon: "🔬",
