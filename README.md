@@ -1,70 +1,90 @@
-# Getting Started with Create React App
+# FoodMap
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**Food access intelligence for communities and officials.**
 
-## Available Scripts
+FoodMap is an interactive web application that visualizes grocery markets, food pantries, and SNAP/EBT retailers across any US location — and scores food access so communities, nonprofits, and city officials can understand where gaps exist and act on what they find.
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Interactive map** — visualize grocery markets, food pantries, and SNAP/EBT retailers within a 5-mile radius of any US zip code or city
+- **Access scoring** — weighted composite score (0–100) across proximity, variety, affordability, pantry density, SNAP coverage, and transit access
+- **Score breakdown** — subcategory bars showing exactly what is driving a neighborhood's score
+- **USDA FNS data** — SNAP/EBT retailer data sourced directly from the official USDA Food and Nutrition Service registry (200k+ locations nationwide)
+- **EBT payment detection** — surfaces places that accept EBT/SNAP as payment via OpenStreetMap tags
+- **Resources list** — filterable, scrollable list of all nearby resources sorted by distance
+- **Compare Zones** — side-by-side comparison of two locations
+- **US-first geocoding** — zip codes and city names resolve to US locations by default
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## Data Sources
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+| Source | Data |
+|--------|------|
+| [USDA FNS](https://www.fns.usda.gov/snap/retailer-locator) | SNAP/EBT authorized retailer registry |
+| [OpenStreetMap](https://www.openstreetmap.org) | Grocery markets, food pantries, EBT-tagged locations |
+| [Nominatim](https://nominatim.org) | Geocoding |
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Getting Started
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Prerequisites
+- Node.js 16+
+- npm
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Installation
 
-### `npm run eject`
+```bash
+git clone https://github.com/b1242943/foodmap.git
+cd foodmap
+npm install
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### SNAP Data Setup
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Download the SNAP retailer CSV from the USDA FNS retailer locator:
+[https://www.fns.usda.gov/snap/retailer-locator](https://www.fns.usda.gov/snap/retailer-locator)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Rename the file to `snap_retailers.csv` and place it in the `public/` folder.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Run Locally
 
-## Learn More
+```bash
+npm start
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+App will open at `http://localhost:3000`
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
 
-### Code Splitting
+## Tech Stack
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- **React** (Create React App)
+- **Leaflet** — interactive mapping
+- **PapaParse** — CSV parsing for SNAP data
+- **Nominatim** — geocoding
+- **Overpass API** — OpenStreetMap data
 
-### Analyzing the Bundle Size
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Use Cases
 
-### Making a Progressive Web App
+- **Community members** — find the nearest open grocery store, pantry, or EBT-accepted retailer
+- **City officials** — identify underserved zip codes and make the case for resource investment
+- **Nonprofits** — understand where pantry coverage is thin and plan outreach
+- **Researchers** — analyze food environment data across neighborhoods and boroughs
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+---
 
-### Advanced Configuration
+## Background
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+FoodMap was built to address food insecurity in underserved urban neighborhoods, with a focus on communities like Far Rockaway, Queens — one of the most geographically isolated and food-insecure neighborhoods in New York City.
 
-### Deployment
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## License
 
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+MIT
