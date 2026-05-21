@@ -130,6 +130,8 @@ export default function ExecutiveReport() {
 
     if (!geoData || viewport.zoom < MIN_ZOOM) return;
 
+    // We utilize a WCAG-compliant colorblind palette. 
+    // Orange (#ea580c) denotes a Critical Gap zone, while Blue (#2563eb) denotes a Covered zone.
     censusLayerRef.current = L.geoJSON(geoData, {
       style: (feature) => {
         const key = `${feature.properties.STATE}${feature.properties.COUNTY}${feature.properties.TRACT}`;
