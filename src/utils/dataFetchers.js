@@ -87,10 +87,8 @@ export async function fetchOverpassData(lat, lon, bboxStr = null, radius = 5000)
 
   const res = await fetch('/api/overpass', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: 'data=' + encodeURIComponent(query)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query })
   });
   const data = await res.json();
   const elements = data.elements || [];
