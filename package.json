@@ -1,5 +1,7 @@
 {
   "name": "foodmap",
+  "description": "Gap-analysis mapping platform for food equity",
+  "author": "",
   "private": true,
   "version": "0.0.0",
   "type": "module",
