@@ -75,10 +75,14 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
             
             const query = `[out:json][timeout:25];(nwr["shop"="supermarket"](${bboxStr});nwr["shop"="grocery"](${bboxStr});nwr["shop"="greengrocer"](${bboxStr});nwr["amenity"="marketplace"](${bboxStr});nwr["payment:ebt"="yes"](${bboxStr});nwr["payment:snap"="yes"](${bboxStr});nwr["payment:food_stamps"="yes"](${bboxStr}););out geom;`;
             
-            const res = await fetch(
-              `/api/overpass?data=${encodeURIComponent(query)}`,
-              { signal: controller.signal }
-            );
+            const res = await fetch('/api/overpass', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: 'data=' + encodeURIComponent(query),
+              signal: controller.signal
+            });
             clearTimeout(timeout);
             
             if (res.status === 429) {

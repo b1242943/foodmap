@@ -85,9 +85,13 @@ export async function fetchOverpassData(lat, lon, bboxStr = null, radius = 5000)
     nwr["payment:food_stamps"="yes"]${filter};
   );out geom;`;
 
-  const res = await fetch(
-    `/api/overpass?data=${encodeURIComponent(query)}`
-  );
+  const res = await fetch('/api/overpass', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'data=' + encodeURIComponent(query)
+  });
   const data = await res.json();
   const elements = data.elements || [];
   
