@@ -296,7 +296,7 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
         
         await Promise.all(pairs.map(async (pair) => {
           const [state, county] = pair.split("_");
-          const url = `https://api.census.gov/data/2022/acs/acs5?get=B17001_002E,B17001_001E,B19013_001E&for=tract:*&in=state:${state}+county:${county}`;
+          const url = `/api/census/2022/acs/acs5?get=B17001_002E,B17001_001E,B19013_001E&for=tract:*&in=state:${state}+county:${county}`;
           try {
             const res = await fetch(url);
             const text = await res.text();
