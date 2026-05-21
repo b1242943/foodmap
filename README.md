@@ -1,8 +1,6 @@
 # FoodMap
 
-**Food access intelligence for communities and officials.**
-
-FoodMap is an interactive web application that visualizes grocery markets, food pantries, and SNAP/EBT retailers across any US location — and scores food access so communities, nonprofits, and city officials can understand where gaps exist and act on what they find.
+FoodMap is an enterprise-grade food equity and gap-analysis platform that cross-references live U.S. Census poverty data with active resource registries to identify high-need food deserts. Built for communities and officials, it enables strategic resource allocation by highlighting exactly where grocery and pantry access is missing.
 
 ---
 
