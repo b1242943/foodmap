@@ -86,7 +86,7 @@ export async function fetchOverpassData(lat, lon, bboxStr = null, radius = 5000)
   );out geom;`;
 
   const res = await fetch(
-    `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
+    `/api/overpass?data=${encodeURIComponent(query)}`
   );
   const data = await res.json();
   const elements = data.elements || [];

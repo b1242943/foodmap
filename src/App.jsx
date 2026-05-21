@@ -202,7 +202,7 @@ function ResourcesView() {
   );
 }
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const OVERPASS_URL = "/api/overpass";
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
 function buildQuery(bbox) {
