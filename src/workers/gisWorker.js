@@ -1,6 +1,12 @@
 /* eslint-disable no-restricted-globals */
 /**
  * gisWorker.js — Off-main-thread GIS spatial processing
+ * 
+ * ARCHITECTURAL NOTE: 
+ * This Web Worker handles heavy spatial mathematics (point-in-polygon calculations)
+ * and the Census `isStrictDesert` gap logic. By offloading these intensive operations, 
+ * we guarantee that the main UI thread remains unblocked and responsive even when 
+ * processing thousands of tracts and resources.
  *
  * Receives: { features, lookup, resources }
  *   - features: GeoJSON feature array (tigerGeo.features)
