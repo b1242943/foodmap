@@ -17,15 +17,30 @@ const DEFAULT_STATS = {
   },
 };
 
+/**
+ * Zustand Global Map Store
+ * Maintains application-wide state for the map interface and analytics.
+ */
 export const useMapStore = create((set) => ({
+  /** @type {string} Current location search query */
   searchQuery: "",
+  /** @type {Object} Core statistics and scoring data for the viewport */
   stats: DEFAULT_STATS,
+  /** @type {boolean} Global loading indicator for async GIS processing */
   loading: false,
+  /** @type {string} Active UI panel (e.g., 'Dashboard', 'Executive Report') */
   activeView: "Dashboard",
 
   setSearchQuery: (query) => set({ searchQuery: query }),
   setLoading: (loading) => set({ loading }),
   setActiveView: (view) => set({ activeView: view }),
+  
+  /**
+   * Deep merges new statistics into the existing stats object.
+   * This ensures sub-objects (like the 'bars' breakdown) are partially updated
+   * without overwriting unspecified values.
+   * @param {Object} newStats - The updated statistics payload
+   */
   setStats: (newStats) =>
     set((state) => {
       const prev = state.stats;
