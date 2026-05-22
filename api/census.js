@@ -18,14 +18,14 @@ export default async function handler(req, res) {
       cleanPath = '/' + cleanPath;
     }
 
-    // 3. (Temporarily disabled: Verify Env Key)
-    // const apiKey = process.env.VITE_CENSUS_API_KEY;
-    // if (!apiKey) {
-    //   throw new Error('Vercel backend cannot find the VITE_CENSUS_API_KEY environment variable.');
-    // }
+    // 3. Verify Env Key
+    const apiKey = process.env.VITE_CENSUS_API_KEY;
+    if (!apiKey) {
+      throw new Error('Missing Census API Key');
+    }
 
     const baseUrl = 'https://api.census.gov/data';
-    const fetchUrl = baseUrl + cleanPath;
+    const fetchUrl = baseUrl + cleanPath + (cleanPath.includes('?') ? '&' : '?') + 'key=' + apiKey;
 
     // Phase 3 Logging
     console.log("Attempting to fetch:", fetchUrl);
