@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/api/census/:path*",
-      "destination": "https://api.census.gov/data/:path*"
-    }
-  ]
-}
