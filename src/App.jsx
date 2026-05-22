@@ -9,6 +9,7 @@ import ScoreDetailModal from "./components/ScoreDetailModal";
 import ResourceDetailModal from "./components/ResourceDetailModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 import BackButton from "./components/BackButton";
+import NearMeButton from "./components/NearMeButton";
 
 const DEFAULT_STATS = {
   label: "ZIP 53703 · Madison, WI",
@@ -438,7 +439,7 @@ export default function App() {
           </span>
         </div>
 
-        <div style={{ flex: 1, maxWidth: 600, display: "flex", gap: 8 }}>
+        <div style={{ flex: 1, maxWidth: 750, display: "flex", gap: 8 }}>
           <div style={{ flex: 1, position: "relative" }}>
             <div style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", display: "flex" }}>
               <Icon.Search />
@@ -459,6 +460,7 @@ export default function App() {
           >
             {loading ? "Searching..." : "Search"}
           </button>
+          <NearMeButton />
         </div>
       </div>
 
