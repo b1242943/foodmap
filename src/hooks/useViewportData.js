@@ -296,9 +296,13 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
         
         await Promise.all(pairs.map(async (pair) => {
           const [state, county] = pair.split("_");
-          const url = `/api/census/2022/acs/acs5?get=B17001_002E,B17001_001E,B19013_001E&for=tract:*&in=state:${state}+county:${county}`;
+          const url = `https://api.census.gov/data/2022/acs/acs5?get=B17001_002E,B17001_001E,B19013_001E&for=tract:*&in=state:${state}+county:${county}`;
           try {
-            const res = await fetch(url);
+            const res = await fetch('/api/census', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ endpoint: url }) 
+            });
             const text = await res.text();
             if (!text.trim().startsWith("[")) throw new Error("Census API Error: " + text.substring(0, 100));
             const data = JSON.parse(text);
