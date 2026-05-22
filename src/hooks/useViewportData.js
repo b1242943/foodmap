@@ -348,7 +348,7 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
         });
 
         await new Promise((resolve) => {
-          const worker = new Worker(new URL('../workers/gisWorker.js?time=' + Date.now(), import.meta.url), { type: 'module' });
+          const worker = new Worker(new URL('../workers/gisWorker.js', import.meta.url), { type: 'module' });
           workerRef.current = worker;
           worker.postMessage({ features: tigerGeo.features, lookup, resources });
           worker.onmessage = (e) => {
