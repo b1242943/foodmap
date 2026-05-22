@@ -94,8 +94,22 @@ export default function Map() {
 
       let searchBbox = null;
       let overpassBbox = null;
+      const isCoordSearch = /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(searchQuery.trim());
 
-      if (geoData[0].boundingbox) {
+      if (isCoordSearch) {
+        const latMargin = 0.0217; // ~1.5 miles
+        const lonMargin = 0.0217 / Math.cos((lat * Math.PI) / 180);
+
+        const southLat = lat - latMargin;
+        const northLat = lat + latMargin;
+        const westLon = lon - lonMargin;
+        const eastLon = lon + lonMargin;
+
+        searchBbox = [southLat, westLon, northLat, eastLon];
+        overpassBbox = `${southLat},${westLon},${northLat},${eastLon}`;
+        
+        map.flyTo([lat, lon], 14, { duration: 1.5 });
+      } else if (geoData[0].boundingbox) {
         const bbox = geoData[0].boundingbox;
         const southLat = parseFloat(bbox[0]);
         const northLat = parseFloat(bbox[1]);
@@ -130,7 +144,7 @@ export default function Map() {
       const resources = [];
 
       const isZipSearch = /^\d{5}$/.test(searchQuery.trim());
-      const searchRadius = isZipSearch ? 2500 : 5000;
+      const searchRadius = isZipSearch || isCoordSearch ? 2500 : 5000;
 
       // Overpass: markets + pantries + EBT-tagged locations
       const nodes = await fetchOverpassData(lat, lon, isZipSearch ? null : overpassBbox, searchRadius);
