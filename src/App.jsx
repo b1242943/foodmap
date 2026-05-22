@@ -8,6 +8,7 @@ import ScoreSummary from "./components/ScoreSummary";
 import ScoreDetailModal from "./components/ScoreDetailModal";
 import ResourceDetailModal from "./components/ResourceDetailModal";
 import ErrorBoundary from "./components/ErrorBoundary";
+import BackButton from "./components/BackButton";
 
 const DEFAULT_STATS = {
   label: "ZIP 53703 · Madison, WI",
@@ -422,6 +423,7 @@ export default function App() {
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gridTemplateRows: "80px 1fr", height: "100vh", background: "var(--bg-primary)", overflow: "hidden" }}>
       {/* Top Header */}
       <div style={{ gridColumn: "1 / -1", background: "var(--bg-primary)", borderBottom: "2px solid var(--border-color)", display: "flex", alignItems: "center", gap: 32, padding: "0 32px", zIndex: 100 }}>
+        <BackButton onReturn={() => setShowLanding(true)} />
         <div style={{ flexShrink: 0 }}>
           <span style={{ 
             fontSize: "var(--font-size-xl)", 
