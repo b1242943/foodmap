@@ -2,15 +2,25 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // 1. Safely parse request body whether stringified or object
+    // 1. Payload Size Limit
+    if (req.body && JSON.stringify(req.body).length > 5000) {
+      return res.status(413).json({ error: 'Payload Too Large' });
+    }
+
+    // 2. Safely parse request body whether stringified or object
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const queryPath = body?.queryPath;
 
-    if (!queryPath) {
-      throw new Error('No queryPath provided in the request body from the frontend.');
+    if (typeof queryPath !== 'string' || !queryPath) {
+      throw new Error('No valid queryPath string provided in the request body from the frontend.');
     }
 
-    // 2. Strip any accidental base URLs/proxies the frontend might have sent
+    // 3. Sanitization (Whitelist allowed characters)
+    if (!/^[a-zA-Z0-9-_\/\?=\.:\*\%&]+$/.test(queryPath)) {
+      throw new Error('Invalid queryPath format. Contains disallowed characters.');
+    }
+
+    // 4. Strip any accidental base URLs/proxies the frontend might have sent
     let cleanPath = queryPath.replace(/^(https?:\/\/[^\/]+)?\/api\/census/, '');
     
     // Ensure it has a leading slash to avoid joining like "/data2022/..."
@@ -18,8 +28,8 @@ export default async function handler(req, res) {
       cleanPath = '/' + cleanPath;
     }
 
-    // 3. Verify Env Key
-    const apiKey = process.env.VITE_CENSUS_API_KEY;
+    // 5. Verify Env Key (Removed VITE_ prefix)
+    const apiKey = process.env.CENSUS_API_KEY;
     if (!apiKey) {
       throw new Error('Missing Census API Key');
     }
