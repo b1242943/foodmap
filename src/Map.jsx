@@ -3,7 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useMapStore } from "./store/useMapStore";
 import Papa from "papaparse";
-import { loadSnapCSV, loadFeedingAmericaCSV, fetchOverpassData, classifyNode, getSnapNearby, getFoodbanksNearby, computeScore, haversineDistance } from "./utils/dataFetchers";
+import { loadSnapCSV, loadFeedingAmericaCSV, fetchOverpassData, classifyNode, getSnapNearby, getFoodbanksNearby, haversineDistance } from "./utils/dataFetchers";
 
 const layerColors = {
   markets: { color: "#059669", type: "FARMERS MARKET / GROCERY" },
@@ -267,20 +267,33 @@ export default function Map() {
 
       resources.sort((a, b) => a.distance - b.distance);
 
-      const score = computeScore(counts);
+      // 1. Time & Travel Metrics
+      const allGrocery = resources.filter(r => r.type === "markets" || r.type === "snap");
+      const nearestDistance = allGrocery.length > 0 ? allGrocery[0].distance : null;
+      const walkTime = nearestDistance !== null ? Math.round(nearestDistance * 20) : null;
+      
+      const resourcesWalkable = resources.filter(r => r.distance <= 0.5).length;
+      const resourcesTravelable = resources.length;
+
+      let snapCoverage = 0;
+      if (allGrocery.length > 0) {
+        const snapMarkets = allGrocery.filter(r => r.type === "snap").length;
+        snapCoverage = Math.round((snapMarkets / allGrocery.length) * 100);
+      }
 
       setStats({
         label,
         lat,
         lon,
-        score: score.composite,
         markets: counts.markets,
         pantries: counts.pantries,
         snap: counts.snap,
         resources,
-        marketScore: score.marketScore,
-        pantryScore: score.pantryScore,
-        snapScore: score.snapScore,
+        nearestDistance,
+        walkTime,
+        snapCoverage,
+        resourcesWalkable,
+        resourcesTravelable,
       });
 
       setLoading(false);

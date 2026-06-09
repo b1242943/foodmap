@@ -126,15 +126,6 @@ export function classifyNode(node) {
   return "markets";
 }
 
-export function computeScore(counts) {
-  const marketScore = Math.min(100, counts.markets * 12);
-  const pantryScore = Math.min(100, counts.pantries * 20);
-  const snapScore = Math.min(100, counts.snap * 25);
-  const composite = Math.round(
-    marketScore * 0.5 + pantryScore * 0.3 + snapScore * 0.2
-  );
-  return { composite, marketScore, pantryScore, snapScore };
-}
 
 export function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 3958.8;

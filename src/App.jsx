@@ -2,10 +2,10 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import FoodMap from "./Map";
 import HomePage from "./HomePage";
 import { useMapStore } from "./store/useMapStore";
+import { useIntersectionObserver } from "./hooks/useIntersectionObserver";
+import { haversineDistance } from "./utils/dataFetchers";
 import ExecutiveReport from "./ExecutiveReport";
 import ResourceListContainer from "./components/ResourceListContainer";
-import ScoreSummary from "./components/ScoreSummary";
-import ScoreDetailModal from "./components/ScoreDetailModal";
 import ResourceDetailModal from "./components/ResourceDetailModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 import BackButton from "./components/BackButton";
@@ -84,24 +84,54 @@ const NAV_ITEMS = [
   { label: "Compare Zones", Icon: Icon.Compare },
 ];
 
-function scoreColor(v) {
-  if (v >= 70) return "var(--color-market)";
-  if (v >= 45) return "var(--color-snap)";
-  return "var(--color-desert)";
-}
+function TimeTravelSummary({ stats }) {
+  const { nearestDistance, walkTime, snapCoverage, pantries } = stats;
 
-function ScoreBadge({ score }) {
-  const color = scoreColor(score);
-  const label = score >= 70 ? "Good Access" : score >= 45 ? "Limited Access" : "Food Desert";
+  let tier = "Severe Transit Burden";
+  let tierColor = "var(--color-desert)";
+  if (nearestDistance !== null) {
+    if (nearestDistance <= 0.5) {
+      tier = "Highly Walkable Access";
+      tierColor = "var(--color-market)";
+    } else if (nearestDistance <= 1.5) {
+      tier = "Transit/Vehicle Reliant";
+      tierColor = "var(--color-snap)";
+    }
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16, background: "var(--bg-secondary)", padding: 16, borderRadius: "var(--border-radius)", border: "1px solid var(--border-color)" }}>
-      <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", fontWeight: 600 }}>OVERALL SCORE</div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <div style={{ fontSize: "48px", fontWeight: 700, color, lineHeight: 1, letterSpacing: "-1px" }}>{score}</div>
-        <div style={{ fontSize: "var(--font-size-lg)", color: "var(--text-secondary)", fontWeight: 600 }}>/ 100</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ background: "var(--bg-secondary)", padding: 24, borderRadius: "var(--border-radius)", border: "2px solid var(--border-color)" }}>
+        <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", fontWeight: 700, marginBottom: 8, letterSpacing: "1px" }}>MOBILITY TIER STATUS</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 16, height: 16, borderRadius: "50%", background: tierColor }} />
+          <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 800, color: "var(--text-primary)" }}>{tier}</div>
+        </div>
       </div>
-      <div style={{ fontSize: "var(--font-size-lg)", color, fontWeight: 700, marginTop: 4 }}>
-        {label}
+
+      <div style={{ background: "var(--bg-secondary)", padding: 24, borderRadius: "var(--border-radius)", border: "2px solid var(--border-color)", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "1px" }}>TIME & TRAVEL MATRIX</div>
+        
+        <div style={{ background: "var(--bg-primary)", padding: "16px", borderRadius: "var(--border-radius)", border: "2px solid var(--border-color)" }}>
+          <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Nearest Food</div>
+          <div style={{ fontSize: "var(--font-size-base)", color: "var(--text-secondary)" }}>
+            {nearestDistance !== null ? `Nearest store is ${nearestDistance.toFixed(1)} miles away (~${walkTime} mins walk).` : "No stores found."}
+          </div>
+        </div>
+
+        <div style={{ background: "var(--bg-primary)", padding: "16px", borderRadius: "var(--border-radius)", border: "2px solid var(--border-color)" }}>
+          <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>SNAP Coverage</div>
+          <div style={{ fontSize: "var(--font-size-base)", color: "var(--text-secondary)" }}>
+            {snapCoverage}% of nearby food resources accept EBT cards.
+          </div>
+        </div>
+
+        <div style={{ background: "var(--bg-primary)", padding: "16px", borderRadius: "var(--border-radius)", border: "2px solid var(--border-color)" }}>
+          <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Emergency Infrastructure</div>
+          <div style={{ fontSize: "var(--font-size-base)", color: "var(--text-secondary)" }}>
+            {pantries} food pantries or soup kitchens found within your transit zone.
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -111,8 +141,6 @@ function ResourcesView() {
   const stats = useMapStore((state) => state.stats);
   const [filter, setFilter] = useState("all");
   const [renderCount, setRenderCount] = useState(20);
-  const observerRef = useRef();
-
   const resources = stats.resources || [];
   const filtered = filter === "all" ? resources : resources.filter((r) => r.type === filter);
 
@@ -120,15 +148,7 @@ function ResourcesView() {
     setRenderCount(20);
   }, [filter, stats.resources]);
 
-  const loadMoreRef = useCallback((node) => {
-    if (observerRef.current) observerRef.current.disconnect();
-    observerRef.current = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        setRenderCount((prev) => prev + 20);
-      }
-    });
-    if (node) observerRef.current.observe(node);
-  }, []);
+  const loadMoreRef = useIntersectionObserver(() => setRenderCount((prev) => prev + 20));
 
   const visibleItems = filtered.slice(0, renderCount);
 
@@ -282,11 +302,31 @@ function CompareView() {
         }
 
         const counts = { markets: 0, pantries: 0, snap: 0 };
-        elements.forEach((n) => counts[classifyNode(n.tags)]++);
-        const scores = computeScore(counts);
+        const resources = [];
+        elements.forEach((n) => {
+          const type = classifyNode(n.tags);
+          counts[type]++;
+          const rlat = n.lat || n.center?.lat;
+          const rlon = n.lon || n.center?.lon;
+          if (rlat && rlon) {
+            resources.push({ type, distance: parseFloat(haversineDistance(lat, lon, rlat, rlon)) });
+          }
+        });
+        resources.sort((a, b) => a.distance - b.distance);
+        
+        const allGrocery = resources.filter(r => r.type === "markets" || r.type === "snap");
+        const nearestDistance = allGrocery.length > 0 ? allGrocery[0].distance : null;
+        const walkTime = nearestDistance !== null ? Math.round(nearestDistance * 20) : null;
+        
+        let snapCoverage = 0;
+        if (allGrocery.length > 0) {
+          const snapMarkets = allGrocery.filter(r => r.type === "snap").length;
+          snapCoverage = Math.round((snapMarkets / allGrocery.length) * 100);
+        }
+
         setResults((p) => {
           const n = [...p];
-          n[idx] = { label, counts, ...scores };
+          n[idx] = { label, counts, nearestDistance, walkTime, snapCoverage };
           return n;
         });
       } catch (e) {
@@ -308,7 +348,9 @@ function CompareView() {
   const metrics =
     results[0] && results[1]
       ? [
-        ["Overall Score", results[0].score, results[1].score],
+        ["Nearest Distance", results[0].nearestDistance ? `${results[0].nearestDistance.toFixed(1)} mi` : "N/A", results[1].nearestDistance ? `${results[1].nearestDistance.toFixed(1)} mi` : "N/A"],
+        ["Est. Walk Time", results[0].walkTime ? `${results[0].walkTime} mins` : "N/A", results[1].walkTime ? `${results[1].walkTime} mins` : "N/A"],
+        ["SNAP Coverage", `${results[0].snapCoverage}%`, `${results[1].snapCoverage}%`],
         ["Grocery Markets", results[0].counts.markets, results[1].counts.markets],
         ["Food Pantries", results[0].counts.pantries, results[1].counts.pantries],
         ["SNAP / EBT Retailers", results[0].counts.snap, results[1].counts.snap],
@@ -395,7 +437,6 @@ export default function App() {
   const setActiveView = useMapStore((state) => state.setActiveView);
 
   const [selectedResourceType, setSelectedResourceType] = useState('all');
-  const [showScoringModal, setShowScoringModal] = useState(false);
   const [selectedResource, setSelectedResource] = useState(null);
 
   const filteredResources = selectedResourceType === 'all' 
@@ -510,20 +551,7 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 32, alignItems: "start" }}>
               {/* Left Column: Stats */}
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                <ScoreBadge score={stats.score} />
-
-                <div style={{ background: 'var(--bg-secondary)', padding: 16, borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--text-secondary)' }}>SCORE BREAKDOWN</div>
-                  {Object.entries(stats.bars).map(([label, { val, color }]) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', width: 90, flexShrink: 0 }}>{label}</div>
-                      <div style={{ flex: 1, height: 6, background: 'var(--border-color)', borderRadius: 100, overflow: 'hidden' }}>
-                        <div style={{ width: `${val}%`, height: '100%', background: color, borderRadius: 100 }} />
-                      </div>
-                      <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color, width: 30, textAlign: 'right' }}>{val}</div>
-                    </div>
-                  ))}
-                </div>
+                <TimeTravelSummary stats={stats} />
                 
                 <div style={{ background: "var(--bg-secondary)", padding: 24, borderRadius: "var(--border-radius)", border: "1px solid var(--border-color)" }}>
                   <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--text-primary)", marginBottom: 16 }}>Resource Counts</div>
@@ -593,12 +621,7 @@ export default function App() {
           </div>
         </div>
       </div>
-      <ScoreDetailModal 
-        isOpen={showScoringModal} 
-        score={stats.score} 
-        bars={stats.bars} 
-        onClose={() => setShowScoringModal(false)} 
-      />
+
       <ResourceDetailModal 
         resource={selectedResource} 
         onClose={() => setSelectedResource(null)} 

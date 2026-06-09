@@ -2,19 +2,15 @@ import { create } from "zustand";
 
 const DEFAULT_STATS = {
   label: "ZIP 53703 · Madison, WI",
-  score: 72,
   markets: 8,
   pantries: 5,
   snap: 12,
   resources: [],
-  bars: {
-    Proximity: { val: 82, color: "var(--color-market)" },
-    Affordability: { val: 64, color: "var(--color-pantry)" },
-    Variety: { val: 71, color: "var(--color-market)" },
-    SNAP: { val: 55, color: "var(--color-snap)" },
-    Transit: { val: 43, color: "var(--text-muted)" },
-    Pantries: { val: 30, color: "var(--color-desert)" },
-  },
+  nearestDistance: 0.4,
+  walkTime: 8,
+  snapCoverage: 60,
+  resourcesWalkable: 3,
+  resourcesTravelable: 15,
 };
 
 /**
@@ -36,9 +32,7 @@ export const useMapStore = create((set) => ({
   setActiveView: (view) => set({ activeView: view }),
   
   /**
-   * Deep merges new statistics into the existing stats object.
-   * This ensures sub-objects (like the 'bars' breakdown) are partially updated
-   * without overwriting unspecified values.
+   * Updates stats object
    * @param {Object} newStats - The updated statistics payload
    */
   setStats: (newStats) =>
@@ -50,26 +44,15 @@ export const useMapStore = create((set) => ({
           label: newStats.label ?? prev.label,
           lat: newStats.lat ?? prev.lat,
           lon: newStats.lon ?? prev.lon,
-          score: newStats.score ?? prev.score,
           markets: newStats.markets ?? prev.markets,
           pantries: newStats.pantries ?? prev.pantries,
           snap: newStats.snap ?? prev.snap,
           resources: newStats.resources ?? prev.resources,
-          bars: {
-            ...prev.bars,
-            Proximity: {
-              ...prev.bars.Proximity,
-              val: newStats.marketScore ?? prev.bars.Proximity.val,
-            },
-            Pantries: {
-              ...prev.bars.Pantries,
-              val: newStats.pantryScore ?? prev.bars.Pantries.val,
-            },
-            SNAP: {
-              ...prev.bars.SNAP,
-              val: newStats.snapScore ?? prev.bars.SNAP.val,
-            },
-          },
+          nearestDistance: newStats.nearestDistance ?? prev.nearestDistance,
+          walkTime: newStats.walkTime ?? prev.walkTime,
+          snapCoverage: newStats.snapCoverage ?? prev.snapCoverage,
+          resourcesWalkable: newStats.resourcesWalkable ?? prev.resourcesWalkable,
+          resourcesTravelable: newStats.resourcesTravelable ?? prev.resourcesTravelable,
         },
       };
     }),

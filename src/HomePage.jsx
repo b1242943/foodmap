@@ -504,20 +504,7 @@ const styles = `
   .fm-delay-3 { animation-delay: 0.3s; }
 `;
 
-const weights = [
-  { label: "Proximity", pct: 30 },
-  { label: "Variety", pct: 25 },
-  { label: "Affordability", pct: 20 },
-  { label: "Pantries", pct: 15 },
-  { label: "SNAP", pct: 5 },
-  { label: "Transit", pct: 5 },
-];
 
-const bars = [
-  { label: "Proximity", value: 100, color: "" },
-  { label: "Affordability", value: 64, color: "amber" },
-  { label: "Transit", value: 43, color: "blue" },
-];
 
 export default function HomePage({ onEnter }) {
   const [animated, setAnimated] = useState(false);
@@ -568,44 +555,40 @@ export default function HomePage({ onEnter }) {
                     .scrollIntoView({ behavior: "smooth" })
                 }
               >
-                How scoring works
+                How logistics work
               </button>
             </div>
           </div>
 
           {/* Mini dashboard preview */}
-          {/* // TODO: Insert new ExecutiveReport.png so the developer can drop in a screenshot of the new map. */}
           <div className="fm-hero-visual fm-animate fm-delay-2">
-            <div className="fm-mini-score">
-              <div className="fm-mini-score-label">Overall Score · Far Rockaway, NY</div>
-              <div className="fm-mini-score-number">58</div>
-              <div className="fm-mini-score-sub">Limited Access</div>
-              <div className="fm-bars">
-                {bars.map((b) => (
-                  <div className="fm-bar-row" key={b.label}>
-                    <div className="fm-bar-label">{b.label}</div>
-                    <div className="fm-bar-track">
-                      <div
-                        className={`fm-bar-fill ${b.color}`}
-                        style={{ width: animated ? `${b.value}%` : "0%" }}
-                      />
-                    </div>
-                  </div>
-                ))}
+            <div style={{ background: "#fff", padding: "1.5rem", borderRadius: "12px", border: "1px solid #f0f0f0", marginBottom: "1rem" }}>
+              <div style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#9ca3af", marginBottom: "0.75rem" }}>
+                Mobility Tier Status · Far Rockaway, NY
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "1rem" }}>
+                <div style={{ width: "14px", height: "14px", borderRadius: "50%", background: "#d97706" }} />
+                <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#111827" }}>Transit/Vehicle Reliant</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ padding: "12px", background: "#f9fafb", borderRadius: "8px", border: "1px solid #f0f0f0" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>Nearest Food</div>
+                  <div style={{ fontSize: "13px", color: "#6b7280" }}>Nearest store is 1.2 miles away (~24 mins walk).</div>
+                </div>
+                <div style={{ padding: "12px", background: "#f9fafb", borderRadius: "8px", border: "1px solid #f0f0f0" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>SNAP Coverage</div>
+                  <div style={{ fontSize: "13px", color: "#6b7280" }}>45% of nearby food resources accept EBT cards.</div>
+                </div>
               </div>
             </div>
             <div className="fm-mini-chips">
               <div className="fm-chip">
                 <div className="fm-chip-dot" style={{ background: "#059669" }} />
-                34 Markets
+                2 Markets
               </div>
               <div className="fm-chip">
                 <div className="fm-chip-dot" style={{ background: "#2563eb" }} />
-                12 Pantries
-              </div>
-              <div className="fm-chip">
-                <div className="fm-chip-dot" style={{ background: "#d97706" }} />
-                89 SNAP
+                4 Pantries
               </div>
             </div>
           </div>
@@ -676,29 +659,26 @@ export default function HomePage({ onEnter }) {
       <div className="fm-methodology" id="methodology">
         <div className="fm-methodology-inner">
           <div>
-            <div className="fm-section-tag">Score methodology</div>
+            <div className="fm-section-tag">Travel & Time Logistics</div>
             <h2 style={{ marginBottom: "1rem" }}>
-              Built on <em>six factors</em> that define real access
+              Measuring <em>real-world</em> transit burdens
             </h2>
             <p style={{ fontSize: "0.95rem", color: "#6b7280", lineHeight: 1.7, marginBottom: "2rem" }}>
-              Food access isn't just about how many stores are nearby. FoodMap
-              weighs proximity, variety, affordability, pantry density, SNAP
-              acceptance, and transit access into a single composite score from
-              0 to 100.
+              We've replaced abstract scoring systems with concrete, real-world logistics. FoodMap categorizes neighborhoods by estimating exact walking times to the nearest market, tracking explicit counts of emergency pantries, and calculating the percentage of locations accepting EBT—giving organizers the exact metrics needed to measure transit strain.
             </p>
-            <div className="fm-score-weights">
-              {weights.map((w) => (
-                <div className="fm-weight-row" key={w.label}>
-                  <div className="fm-weight-label">{w.label}</div>
-                  <div className="fm-weight-track">
-                    <div
-                      className="fm-weight-fill"
-                      style={{ width: `${(w.pct / 30) * 100}%` }}
-                    />
-                  </div>
-                  <div className="fm-weight-pct">{w.pct}%</div>
-                </div>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ padding: "16px", background: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>🟢 Highly Walkable Access</div>
+                <div style={{ fontSize: "13px", color: "#6b7280" }}>A grocery resource is available within a 10-minute walk (≤ 0.5 miles).</div>
+              </div>
+              <div style={{ padding: "16px", background: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>🟠 Transit/Vehicle Reliant</div>
+                <div style={{ fontSize: "13px", color: "#6b7280" }}>Stores require transit or a lengthy walk of up to 30 minutes (0.5 - 1.5 miles).</div>
+              </div>
+              <div style={{ padding: "16px", background: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>🔴 Severe Transit Burden</div>
+                <div style={{ fontSize: "13px", color: "#6b7280" }}>Food sources are far outside walkable ranges ({">"} 1.5 miles), imposing high strain.</div>
+              </div>
             </div>
           </div>
 
