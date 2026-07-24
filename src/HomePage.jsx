@@ -493,6 +493,18 @@ const styles = `
     color: #9ca3af;
   }
 
+  .fm-footer-sources a {
+    color: #9ca3af;
+    text-decoration: underline;
+    text-decoration-color: rgba(156, 163, 175, 0.4);
+    transition: color 0.15s ease;
+  }
+
+  .fm-footer-sources a:hover {
+    color: #059669;
+    text-decoration-color: #059669;
+  }
+
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
@@ -741,7 +753,16 @@ export default function HomePage({ onEnter }) {
           FoodMap
         </div>
         <div className="fm-footer-sources">
-          Data: USDA FNS · OpenStreetMap · Nominatim
+          Data:{" "}
+          <a href="https://www.fns.usda.gov/snap/retailer/historical-data" target="_blank" rel="noopener noreferrer">USDA FNS</a>
+          {" · "}
+          <a href="https://www.feedingamerica.org/research" target="_blank" rel="noopener noreferrer">Feeding America</a>
+          {" · "}
+          <a href="https://data.cityofnewyork.us/Health/NYC-Farmers-Markets/8vwk-6iz2" target="_blank" rel="noopener noreferrer">NYC Open Data</a>
+          {" · "}
+          <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+          {" & "}
+          <a href="https://nominatim.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>
         </div>
         <div className="fm-footer-copy">Built for communities.</div>
       </footer>
