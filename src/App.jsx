@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { Analytics } from '@vercel/analytics/react';
 import FoodMap from "./Map";
 import HomePage from "./HomePage";
 import { useMapStore } from "./store/useMapStore";
@@ -718,6 +719,7 @@ export default function App() {
         resource={selectedResource} 
         onClose={() => setSelectedResource(null)} 
       />
+      <Analytics />
     </div>
     </ErrorBoundary>
   );
