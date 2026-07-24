@@ -5,7 +5,13 @@ import { useViewportData } from "./hooks/useViewportData";
 import { useMapStore } from "./store/useMapStore";
 
 const MIN_ZOOM = 11;
-const TYPE_COLORS = { markets: "#059669", pantries: "#2563eb", snap: "#d97706" };
+const TYPE_COLORS = { markets: "#059669", pantries: "#2563eb", snap: "#d97706", health_bucks: "#7c3aed" };
+const LAYER_META = [
+  { key: "markets", label: "Grocery Markets" },
+  { key: "pantries", label: "Food Pantries" },
+  { key: "snap", label: "SNAP / EBT Retailers" },
+  { key: "health_bucks", label: "Farmers Markets / Health Bucks" },
+];
 
 function makeIcon(color) {
   return L.divIcon({
@@ -19,13 +25,15 @@ function makeIcon(color) {
 
 export default function ExecutiveReport() {
   const stats = useMapStore((state) => state.stats);
+  const setExecutiveLocation = useMapStore((state) => state.setExecutiveLocation);
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef({});
   const censusLayerRef = useRef(null);
   const debounceRef = useRef(null);
-  
+
   const [viewport, setViewport] = useState({ bounds: null, center: null, zoom: 13 });
+  const [visibleLayers, setVisibleLayers] = useState({ markets: true, pantries: true, snap: true, health_bucks: true });
 
   const { loading, censusLookup, areaStats, geoData, allResources } = useViewportData(
     viewport.bounds, viewport.zoom, viewport.center, MIN_ZOOM
@@ -62,7 +70,14 @@ export default function ExecutiveReport() {
       markets: L.layerGroup().addTo(map),
       pantries: L.layerGroup().addTo(map),
       snap: L.layerGroup().addTo(map),
+      health_bucks: L.layerGroup().addTo(map),
     };
+
+    // Seed the shared executive-report location only when centered on a real search —
+    // not the continental-US fallback, which isn't a location worth syncing to other tabs.
+    if (stats && stats.lat && stats.lon) {
+      setExecutiveLocation({ lat: stats.lat, lon: stats.lon });
+    }
 
     setTimeout(() => {
       setViewport({
@@ -75,11 +90,15 @@ export default function ExecutiveReport() {
     const onMoveEnd = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
+        const newCenter = map.getCenter();
         setViewport({
           bounds: map.getBounds(),
-          center: map.getCenter(),
+          center: newCenter,
           zoom: map.getZoom(),
         });
+        // Track wherever the user pans so switching to Dashboard/Resources can
+        // target this exact location — see setActiveView in useMapStore.
+        setExecutiveLocation({ lat: newCenter.lat, lon: newCenter.lng });
       }, 400); // 400ms debounce
     };
 
@@ -103,10 +122,12 @@ export default function ExecutiveReport() {
 
     allResources.forEach(res => {
       const type = res.type;
+      if (!visibleLayers[type]) return;
       const color = TYPE_COLORS[type];
       let label = "MARKET";
       if (type === "snap") label = "SNAP / EBT RETAILER";
       if (type === "pantries") label = "FOOD INSECURITY HELP";
+      if (type === "health_bucks") label = "FARMERS MARKET · HEALTH BUCKS";
 
       L.marker([res.lat, res.lon], { icon: makeIcon(color) })
         .bindTooltip(
@@ -117,7 +138,7 @@ export default function ExecutiveReport() {
         )
         .addTo(layersRef.current[type]);
     });
-  }, [allResources, viewport.zoom]);
+  }, [allResources, viewport.zoom, visibleLayers]);
 
   // Render Census GeoJSON Layer
   useEffect(() => {
@@ -289,18 +310,18 @@ export default function ExecutiveReport() {
           
           <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
             <h3 style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Visible Resource Layers</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", background: TYPE_COLORS.markets }} />
-              <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)" }}>Grocery Markets</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", background: TYPE_COLORS.pantries }} />
-              <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)" }}>Food Pantries</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", background: TYPE_COLORS.snap }} />
-              <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)" }}>SNAP / EBT Retailers</span>
-            </div>
+            {LAYER_META.map(({ key, label }) => (
+              <label key={key} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={visibleLayers[key]}
+                  onChange={() => setVisibleLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
+                  style={{ width: 16, height: 16, accentColor: TYPE_COLORS[key], cursor: "pointer" }}
+                />
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: TYPE_COLORS[key], flexShrink: 0 }} />
+                <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)" }}>{label}</span>
+              </label>
+            ))}
           </div>
         </div>
         

@@ -3,7 +3,18 @@ import FoodMap from "./Map";
 import HomePage from "./HomePage";
 import { useMapStore } from "./store/useMapStore";
 import { useIntersectionObserver } from "./hooks/useIntersectionObserver";
-import { haversineDistance } from "./utils/dataFetchers";
+import {
+  haversineDistance,
+  fetchOverpassData,
+  classifyNode,
+  loadSnapCSV,
+  loadFeedingAmericaCSV,
+  loadFarmersMarketsCSV,
+  getSnapNearby,
+  getFoodbanksNearby,
+  getFarmersMarketsNearby,
+  computeHealthBucksOffset,
+} from "./utils/dataFetchers";
 import ExecutiveReport from "./ExecutiveReport";
 import ResourceListContainer from "./components/ResourceListContainer";
 import ResourceDetailModal from "./components/ResourceDetailModal";
@@ -29,8 +40,19 @@ const DEFAULT_STATS = {
 };
 
 const VIEWS = ["Dashboard", "Executive Report", "Resources", "Compare Zones"];
-const TYPE_COLORS = { markets: "var(--color-market)", pantries: "var(--color-pantry)", snap: "var(--color-snap)", desert: "var(--color-desert)" };
-const TYPE_LABELS = { markets: "Grocery Market", pantries: "Food Pantry", snap: "SNAP / EBT Retailer" };
+const TYPE_COLORS = {
+  markets: "var(--color-market)",
+  pantries: "var(--color-pantry)",
+  snap: "var(--color-snap)",
+  desert: "var(--color-desert)",
+  health_bucks: "#7c3aed"
+};
+const TYPE_LABELS = {
+  markets: "Grocery Market",
+  pantries: "Food Pantry",
+  snap: "SNAP / EBT Retailer",
+  health_bucks: "Farmers Market (Health Bucks)"
+};
 
 const Icon = {
   Dashboard: () => (
@@ -224,36 +246,7 @@ function ResourcesView() {
   );
 }
 
-const OVERPASS_URL = "/api/overpass";
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-
-function buildQuery(bbox) {
-  const b = `${bbox[0]},${bbox[2]},${bbox[1]},${bbox[3]}`;
-  return `[out:json][timeout:90];(
-    nwr["shop"="supermarket"](${b});
-    nwr["shop"="grocery"](${b});
-    nwr["amenity"="food_bank"](${b});
-    nwr["amenity"="social_facility"]["social_facility"="food_bank"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
-    nwr["amenity"="social_facility"]["social_facility"="food_pantry"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
-    nwr["social_facility"="food_bank"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
-    nwr["social_facility"="soup_kitchen"]["social_facility"!~"nursing|care|doctors|hospital"](${b});
-    nwr["government"="social_services"](${b});
-  );out center;`;
-}
-
-function classifyNode(tags = {}) {
-  const name = (tags.name || "").toLowerCase();
-  if (tags.government === "social_services" || /snap|food stamp|dhs|benefit|human service/.test(name)) return "snap";
-  if (tags.amenity === "food_bank" || tags.social_facility === "food_bank" || /pantry|food bank|soup kitchen|hunger|salvation army|food shelf/.test(name)) return "pantries";
-  return "markets";
-}
-
-function computeScore({ markets, pantries, snap }) {
-  const mkt = Math.min(100, markets * 14);
-  const pan = Math.min(100, pantries * 22);
-  const snp = Math.min(100, snap * 10);
-  return { score: Math.round(mkt * 0.45 + pan * 0.25 + snp * 0.3), marketScore: mkt, pantryScore: pan, snapScore: snp };
-}
 
 function CompareView() {
   const [zips, setZips] = useState(["", ""]);
@@ -276,57 +269,151 @@ function CompareView() {
         return n;
       });
       try {
-        const geoRes = await fetch(`${NOMINATIM_URL}?q=${encodeURIComponent(val)}&format=json&limit=1`);
-        const geoData = await geoRes.json();
-        if (!geoData.length) throw new Error(`Location not found: "${val}"`);
+        const hasCountry = val.includes(",");
+        const countryParam = hasCountry ? "" : "&countrycodes=us";
+
+        // Geocoding failures (network/HTTP) are the only thing that should hard-fail this
+        // location — mirrors Map.jsx's classification instead of letting a raw fetch/JSON
+        // error surface as a generic message.
+        let geoData;
+        try {
+          const geoRes = await fetch(
+            `${NOMINATIM_URL}?q=${encodeURIComponent(val)}&format=json&addressdetails=1&limit=1${countryParam}`
+          );
+          if (!geoRes.ok) throw new Error(`Geocoding service returned HTTP ${geoRes.status}.`);
+          geoData = await geoRes.json();
+        } catch (geoErr) {
+          const err = new Error("Could not reach the location lookup service. Check your connection and try again.");
+          err.code = "GEOCODING_ERROR";
+          throw err;
+        }
+
+        if (!Array.isArray(geoData) || !geoData.length) {
+          throw new Error(`Location not found: "${val}"`);
+        }
+
         const lat = parseFloat(geoData[0].lat);
         const lon = parseFloat(geoData[0].lon);
-        const bbox = geoData[0].boundingbox;
         const label = geoData[0].display_name.split(",").slice(0, 2).join(", ");
-        const cacheKey = `overpass_${lat.toFixed(3)}_${lon.toFixed(3)}`;
-        const cached = sessionStorage.getItem(cacheKey);
-        let elements = [];
 
-        if (cached) {
-          elements = JSON.parse(cached);
-        } else {
-          const ovRes = await fetch(OVERPASS_URL, { method: "POST", body: `data=${encodeURIComponent(buildQuery(bbox))}` });
-          if (!ovRes.ok) throw new Error("Database error");
-          const ovData = await ovRes.json();
-          elements = ovData.elements || [];
-          try {
-            sessionStorage.setItem(cacheKey, JSON.stringify(elements));
-          } catch (e) {
-            console.warn("Could not cache overpass data", e);
-          }
+        // Same dynamic radius shrinking as Map.jsx: zip searches use a plain radius (no
+        // bbox), and known isolated peninsula ZIPs (e.g. 11691 Far Rockaway) clamp the
+        // Overpass radius so the live query finishes inside the Vercel timeout.
+        const isZipSearch = /^\d{5}$/.test(val);
+        const isPeninsula = /1169[1-7]|rockaway|edgemere/i.test(val);
+
+        let overpassBbox = null;
+        if (!isZipSearch && geoData[0].boundingbox) {
+          const [southLat, northLat, westLon, eastLon] = geoData[0].boundingbox.map(parseFloat);
+          overpassBbox = `${southLat},${westLon},${northLat},${eastLon}`;
         }
+
+        let searchRadius = isZipSearch ? 2500 : 5000;
+        if (isPeninsula) searchRadius = Math.min(searchRadius, 3218);
+
+        // Decoupled fetch: live Overpass plus the three local fallback datasets all run
+        // concurrently. A slow/failed Overpass call can never block local data or bubble
+        // up as a hard "Database error" — it's caught below and reported as a soft warning.
+        const [overpassResult, snapResult, faResult, fmResult] = await Promise.allSettled([
+          fetchOverpassData(lat, lon, isZipSearch ? null : overpassBbox, searchRadius),
+          loadSnapCSV(),
+          loadFeedingAmericaCSV(),
+          loadFarmersMarketsCSV(),
+        ]);
 
         const counts = { markets: 0, pantries: 0, snap: 0 };
         const resources = [];
-        elements.forEach((n) => {
-          const type = classifyNode(n.tags);
-          counts[type]++;
-          const rlat = n.lat || n.center?.lat;
-          const rlon = n.lon || n.center?.lon;
-          if (rlat && rlon) {
-            resources.push({ type, distance: parseFloat(haversineDistance(lat, lon, rlat, rlon)) });
-          }
+
+        let overpassError = null;
+        if (overpassResult.status === "fulfilled") {
+          (overpassResult.value || []).forEach((node) => {
+            const itemLat = node.lat || node.center?.lat;
+            const itemLon = node.lon || node.center?.lon;
+            if (!itemLat || !itemLon) return;
+            const type = classifyNode(node);
+            counts[type]++;
+            resources.push({ type, distance: parseFloat(haversineDistance(lat, lon, itemLat, itemLon)) });
+          });
+        } else {
+          overpassError = overpassResult.reason;
+          console.warn("[Compare] Overpass fetch failed (non-fatal):", overpassError?.message || overpassError);
+        }
+
+        // Local SNAP retailers — getSnapNearby enforces the shared MAX_LOCAL_RADIUS_MILES cap.
+        const snapData = snapResult.status === "fulfilled" ? snapResult.value || [] : [];
+        getSnapNearby(snapData, lat, lon, searchRadius, null, isZipSearch ? val : null).forEach((row) => {
+          const rlat = parseFloat(row.Latitude);
+          const rlon = parseFloat(row.Longitude);
+          counts.snap++;
+          resources.push({ type: "snap", distance: parseFloat(haversineDistance(lat, lon, rlat, rlon)) });
         });
+
+        // Local Feeding America food banks/pantries — same 5-mile cap applied inside getFoodbanksNearby.
+        const faData = faResult.status === "fulfilled" ? faResult.value || [] : [];
+        const countyName =
+          geoData[0].address?.county ||
+          geoData[0].display_name.split(",").find((p) => p.includes("County"))?.trim() ||
+          "";
+        getFoodbanksNearby(faData, countyName, lat, lon).forEach((row) => {
+          const rlat = parseFloat(row.Latitude);
+          const rlon = parseFloat(row.Longitude);
+          counts.pantries++;
+          resources.push({ type: "pantries", distance: parseFloat(haversineDistance(lat, lon, rlat, rlon)) });
+        });
+
+        // Local NYC Farmers Markets — also feeds the Health Bucks offset below.
+        const fmData = fmResult.status === "fulfilled" ? fmResult.value || [] : [];
+        let healthBucksCount = 0;
+        let nearestHBDist = null;
+        let nearestHBMultiplier = 1.0;
+        getFarmersMarketsNearby(fmData, lat, lon, searchRadius * 2, null).forEach((market) => {
+          const rlat = parseFloat(market.lat);
+          const rlon = parseFloat(market.lon);
+          const distance = parseFloat(haversineDistance(lat, lon, rlat, rlon));
+          const type = market.accepts_health_bucks ? "health_bucks" : "markets";
+          counts.markets++;
+          if (market.accepts_health_bucks) {
+            healthBucksCount++;
+            if (nearestHBDist === null || distance < nearestHBDist) {
+              nearestHBDist = distance;
+              nearestHBMultiplier = parseFloat(market.health_bucks_multiplier) || 1.0;
+            }
+          }
+          resources.push({ type, distance });
+        });
+
         resources.sort((a, b) => a.distance - b.distance);
-        
-        const allGrocery = resources.filter(r => r.type === "markets" || r.type === "snap");
+
+        const allGrocery = resources.filter((r) => r.type === "markets" || r.type === "snap" || r.type === "health_bucks");
         const nearestDistance = allGrocery.length > 0 ? allGrocery[0].distance : null;
         const walkTime = nearestDistance !== null ? Math.round(nearestDistance * 20) : null;
-        
+        const { effectiveWalkTime } =
+          walkTime !== null
+            ? computeHealthBucksOffset(walkTime, nearestHBDist, nearestHBMultiplier)
+            : { effectiveWalkTime: null };
+
         let snapCoverage = 0;
         if (allGrocery.length > 0) {
-          const snapMarkets = allGrocery.filter(r => r.type === "snap").length;
+          const snapMarkets = allGrocery.filter((r) => r.type === "snap").length;
           snapCoverage = Math.round((snapMarkets / allGrocery.length) * 100);
         }
 
+        // Overpass failing/timing out is a degraded-but-recovered state as long as at
+        // least one local fallback source came through — render normally with no warning
+        // in that case. Only surface a warning when every source (live + all three local
+        // datasets) failed, since then there is genuinely nothing to show for this location.
+        const allSourcesFailed =
+          overpassResult.status === "rejected" &&
+          snapResult.status === "rejected" &&
+          faResult.status === "rejected" &&
+          fmResult.status === "rejected";
+        const partialDataWarning = allSourcesFailed
+          ? "Could not load any grocery, SNAP, food bank, or farmers market data for this location."
+          : null;
+
         setResults((p) => {
           const n = [...p];
-          n[idx] = { label, counts, nearestDistance, walkTime, snapCoverage };
+          n[idx] = { label, counts, nearestDistance, walkTime, effectiveWalkTime, snapCoverage, healthBucksCount, partialDataWarning };
           return n;
         });
       } catch (e) {
@@ -350,6 +437,7 @@ function CompareView() {
       ? [
         ["Nearest Distance", results[0].nearestDistance ? `${results[0].nearestDistance.toFixed(1)} mi` : "N/A", results[1].nearestDistance ? `${results[1].nearestDistance.toFixed(1)} mi` : "N/A"],
         ["Est. Walk Time", results[0].walkTime ? `${results[0].walkTime} mins` : "N/A", results[1].walkTime ? `${results[1].walkTime} mins` : "N/A"],
+        ["Effective Walk Time", results[0].effectiveWalkTime != null ? `${results[0].effectiveWalkTime} mins` : "N/A", results[1].effectiveWalkTime != null ? `${results[1].effectiveWalkTime} mins` : "N/A"],
         ["SNAP Coverage", `${results[0].snapCoverage}%`, `${results[1].snapCoverage}%`],
         ["Grocery Markets", results[0].counts.markets, results[1].counts.markets],
         ["Food Pantries", results[0].counts.pantries, results[1].counts.pantries],
@@ -390,7 +478,11 @@ function CompareView() {
             {results[i] ? (
               <div>
                 <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", marginBottom: 16 }}>{results[i].label}</div>
-                <ScoreBadge score={results[i].score} />
+                {results[i].partialDataWarning && (
+                  <div style={{ fontSize: "var(--font-size-sm)", color: "#92400e", marginBottom: 16, padding: "10px 14px", background: "#fffbeb", borderRadius: "var(--border-radius)", border: "2px solid #f59e0b", fontWeight: 600 }}>
+                    ⏱ {results[i].partialDataWarning}
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {[["Grocery Markets", results[i].counts.markets, "var(--color-market)"], ["Food Pantries", results[i].counts.pantries, "var(--color-pantry)"], ["SNAP / EBT Retailers", results[i].counts.snap, "var(--color-snap)"]].map(([label, val, color]) => (
                     <div key={label} style={{ background: "var(--bg-primary)", padding: "12px 16px", borderRadius: "var(--border-radius)", border: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

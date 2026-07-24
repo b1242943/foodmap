@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { fetchOverpassData, loadSnapCSV, loadFeedingAmericaCSV, getSnapNearby, getFoodbanksNearby, classifyNode } from "../utils/dataFetchers";
+import { fetchOverpassData, loadSnapCSV, loadFeedingAmericaCSV, loadFarmersMarketsCSV, getSnapNearby, getFoodbanksNearby, getFarmersMarketsNearby, classifyNode } from "../utils/dataFetchers";
 
 let cachedGeoData = null;
 
@@ -122,6 +122,13 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
           console.warn("loadFeedingAmericaCSV failed:", e);
         }
 
+        let fmData = [];
+        try {
+          fmData = await loadFarmersMarketsCSV();
+        } catch (e) {
+          console.warn("loadFarmersMarketsCSV failed:", e);
+        }
+
         if (!isCurrent) return;
 
         const resources = [];
@@ -132,7 +139,7 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
             const itemLon = node.lon || node.center?.lon;
             if (!itemLat || !itemLon) return;
             const type = classifyNode(node);
-            if (type !== 'markets') return; 
+            if (type !== 'markets') return;
             resources.push({ lat: itemLat, lon: itemLon, type, name: node.tags?.name || "Grocery Market" });
           });
         }
@@ -141,6 +148,21 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
           const visibleSnap = getSnapNearby(snapData, center.lat, center.lng, 50000, [south, west, north, east]);
           visibleSnap.forEach(row => {
             resources.push({ lat: parseFloat(row.Latitude), lon: parseFloat(row.Longitude), type: 'snap', name: row.Store_Name });
+          });
+        }
+
+        if (Array.isArray(fmData)) {
+          const visibleFM = getFarmersMarketsNearby(fmData, center.lat, center.lng, 50000, [south, west, north, east]);
+          visibleFM.forEach(market => {
+            const rlat = parseFloat(market.lat);
+            const rlon = parseFloat(market.lon);
+            if (isNaN(rlat) || isNaN(rlon)) return;
+            resources.push({
+              lat: rlat,
+              lon: rlon,
+              type: market.accepts_health_bucks ? 'health_bucks' : 'markets',
+              name: market.name || "Farmers Market",
+            });
           });
         }
 
@@ -188,7 +210,7 @@ export function useViewportData(bounds, zoomLevel, center, minZoom = 11) {
         if (!isCurrent) return;
 
         if (countyMatch && Array.isArray(faData)) {
-          const visibleFA = getFoodbanksNearby(faData, countyMatch);
+          const visibleFA = getFoodbanksNearby(faData, countyMatch, center.lat, center.lng);
           visibleFA.forEach(row => {
             const lat = parseFloat(row.Latitude || row.lat || center.lat);
             const lon = parseFloat(row.Longitude || row.lon || center.lng);
