@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  const allowedOrigins = ['https://foodmap-ruby.vercel.app', 'http://localhost:5173'];
+  const allowedOrigins = ['https://foodmap-ruby.vercel.app', 'http://localhost:3000'];
   const origin = req.headers.origin;
 
   if (allowedOrigins.includes(origin)) {
@@ -30,7 +30,9 @@ export default async function handler(req, res) {
     }
 
     // 3. Sanitization (Whitelist allowed characters)
-    if (!/^[a-zA-Z0-9-_\/\?=\.:\*\%&]+$/.test(queryPath)) {
+    // Must include ',' — every real ACS queryPath uses it in get=VAR1,VAR2,VAR3.
+    // Without it this rejects 100% of legitimate requests before they reach Census.
+    if (!/^[a-zA-Z0-9-_\/\?=\.:\*\%&,]+$/.test(queryPath)) {
       throw new Error('Invalid queryPath format. Contains disallowed characters.');
     }
 

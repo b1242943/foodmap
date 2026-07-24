@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  const allowedOrigins = ['https://foodmap-ruby.vercel.app', 'http://localhost:5173'];
+  const allowedOrigins = ['https://foodmap-ruby.vercel.app', 'http://localhost:3000'];
   const origin = req.headers.origin;
 
   if (allowedOrigins.includes(origin)) {
@@ -21,8 +21,10 @@ export default async function handler(req, res) {
       return res.status(413).json({ error: 'Payload Too Large' });
     }
 
-    // 2. Type Checking
-    const query = req.body?.query;
+    // 2. Type Checking — defensively handle req.body arriving as a raw string
+    // rather than a pre-parsed object (matches the same guard in api/census.js).
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const query = body?.query;
     if (typeof query !== 'string' || !query) {
       return res.status(400).json({ error: 'No valid query string provided in the request body.' });
     }
