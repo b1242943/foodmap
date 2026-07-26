@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import FoodMap from "./Map";
 import HomePage from "./HomePage";
-import { useMapStore } from "./store/useMapStore";
+import { useMapStore, DATA_SOURCE_META } from "./store/useMapStore";
 import { useIntersectionObserver } from "./hooks/useIntersectionObserver";
 import {
   haversineDistance,
@@ -10,6 +10,7 @@ import {
   loadSnapCSV,
   loadFeedingAmericaCSV,
   loadFarmersMarketsCSV,
+  getFarmersMarketsDataYear,
   getSnapNearby,
   getFoodbanksNearby,
   getFarmersMarketsNearby,
@@ -248,11 +249,147 @@ function ResourcesView() {
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
+const VARIANCE_ROWS = [
+  { key: "markets", label: "Grocery Markets", color: "var(--color-market)" },
+  { key: "pantries", label: "Food Pantries", color: "var(--color-pantry)" },
+  { key: "snap", label: "SNAP / EBT Retailers", color: "var(--color-snap)" },
+];
+
+// Each metric's underlying source carries a different kind of provenance (live query vs.
+// a dated annual snapshot vs. a static bundle with no date encoded at all) — see
+// DATA_SOURCE_META's `freshness` field for why these can't share one label format.
+function formatSourceFreshness(source, result) {
+  if (source.freshness === "live") {
+    if (!result?.fetchedAt) return "Live data";
+    const secondsAgo = Math.max(0, Math.round((Date.now() - new Date(result.fetchedAt).getTime()) / 1000));
+    let ago;
+    if (secondsAgo < 60) ago = `${secondsAgo}s ago`;
+    else if (secondsAgo < 3600) ago = `${Math.round(secondsAgo / 60)}m ago`;
+    else ago = `${Math.round(secondsAgo / 3600)}h ago`;
+    return `Live data · fetched ${ago}`;
+  }
+  if (source.freshness === "dataYear") {
+    return result?.farmersMarketDataYear ? `Dataset year ${result.farmersMarketDataYear}` : "Dataset year unavailable";
+  }
+  return "Static dataset bundled with this app — exact refresh date not encoded in the source data";
+}
+
+function DataSourceTooltip({ metricKey, result, onClose, side }) {
+  const meta = DATA_SOURCE_META[metricKey];
+  if (!meta) return null;
+  // Anchor from the edge closer to the card's center instead of centering under the
+  // trigger — the "A" (left) button sits near the container's left edge and a centered
+  // popover overflows off-screen there; same for "B" on the right.
+  const sideStyle = side === "A" ? { left: 0 } : { right: 0 };
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "calc(100% + 8px)",
+        ...sideStyle,
+        zIndex: 20,
+        width: 260,
+        background: "var(--bg-primary)",
+        border: "2px solid var(--border-color)",
+        borderRadius: "var(--border-radius)",
+        boxShadow: "var(--shadow-lg)",
+        padding: 16,
+        textAlign: "left",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <div style={{ fontWeight: 700, fontSize: "var(--font-size-sm)", color: "var(--text-primary)" }}>
+          Data Source{meta.sources.length > 1 ? "s" : ""}
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 18, padding: 0, lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {meta.sources.map((source) => (
+          <div key={source.name}>
+            <a
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontWeight: 600, fontSize: "var(--font-size-sm)", color: "var(--color-market)" }}
+            >
+              {source.name} ↗
+            </a>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+              {formatSourceFreshness(source, result)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VarianceBar({ metricKey, label, color, valueA, valueB, resultA, resultB, openSide, onToggleSide }) {
+  const total = valueA + valueB;
+  const pctA = total > 0 ? (valueA / total) * 100 : 50;
+  const pctB = total > 0 ? (valueB / total) * 100 : 50;
+  const delta = valueA - valueB;
+
+  let deltaText;
+  if (total === 0) {
+    deltaText = "Even — no resources found in either zone";
+  } else if (delta === 0) {
+    deltaText = "Even";
+  } else if (delta > 0) {
+    deltaText = `Zone 1 +${delta}`;
+  } else {
+    deltaText = `Zone 2 +${Math.abs(delta)}`;
+  }
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: "var(--font-size-base)", color: "var(--text-primary)" }}>{label}</span>
+        <span style={{ fontWeight: 700, fontSize: "var(--font-size-sm)", color: delta === 0 ? "var(--text-muted)" : color }}>{deltaText}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => onToggleSide("A")}
+            title="View data source"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minWidth: 28, textAlign: "right", fontWeight: 700, fontSize: "var(--font-size-lg)", color: "var(--text-primary)", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
+          >
+            {valueA}
+          </button>
+          {openSide === "A" && <DataSourceTooltip metricKey={metricKey} result={resultA} side="A" onClose={() => onToggleSide("A")} />}
+        </div>
+        <div style={{ flex: 1, height: 12, borderRadius: 6, overflow: "hidden", display: "flex", background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
+          <div style={{ width: `${pctA}%`, background: color, transition: "width 0.3s ease" }} />
+          <div style={{ width: `${pctB}%`, background: "var(--border-color)", transition: "width 0.3s ease" }} />
+        </div>
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => onToggleSide("B")}
+            title="View data source"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minWidth: 28, textAlign: "left", fontWeight: 700, fontSize: "var(--font-size-lg)", color: "var(--text-primary)", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
+          >
+            {valueB}
+          </button>
+          {openSide === "B" && <DataSourceTooltip metricKey={metricKey} result={resultB} side="B" onClose={() => onToggleSide("B")} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CompareView() {
   const [zips, setZips] = useState(["", ""]);
-  const [results, setResults] = useState([null, null]);
+  const results = useMapStore((state) => state.compareResults);
+  const setCompareResult = useMapStore((state) => state.setCompareResult);
   const [loading, setLoading] = useState([false, false]);
   const [errors, setErrors] = useState(["", ""]);
+  const [openTooltip, setOpenTooltip] = useState(null); // { zoneIdx, metricKey } | null
 
   const analyzeZip = useCallback(
     async (idx) => {
@@ -320,6 +457,9 @@ function CompareView() {
           loadFeedingAmericaCSV(),
           loadFarmersMarketsCSV(),
         ]);
+        // Real retrieval timestamp for this search — used by the data-source tooltips to
+        // show a genuine "fetched X ago" for the live-queried Overpass data, not a guess.
+        const fetchedAt = new Date().toISOString();
 
         const counts = { markets: 0, pantries: 0, snap: 0 };
         const resources = [];
@@ -411,10 +551,17 @@ function CompareView() {
           ? "Could not load any grocery, SNAP, food bank, or farmers market data for this location."
           : null;
 
-        setResults((p) => {
-          const n = [...p];
-          n[idx] = { label, counts, nearestDistance, walkTime, effectiveWalkTime, snapCoverage, healthBucksCount, partialDataWarning };
-          return n;
+        setCompareResult(idx, {
+          label,
+          counts,
+          nearestDistance,
+          walkTime,
+          effectiveWalkTime,
+          snapCoverage,
+          healthBucksCount,
+          partialDataWarning,
+          fetchedAt,
+          farmersMarketDataYear: getFarmersMarketsDataYear(),
         });
       } catch (e) {
         setErrors((p) => {
@@ -498,6 +645,31 @@ function CompareView() {
           </div>
         ))}
       </div>
+
+      {results[0] && results[1] && (
+        <div style={{ maxWidth: 1000, margin: "40px auto 0", background: "var(--bg-primary)", border: "2px solid var(--border-color)", borderRadius: "var(--border-radius)", padding: 24 }}>
+          <div style={{ fontWeight: 700, fontSize: "var(--font-size-lg)", color: "var(--text-primary)", marginBottom: 4, textAlign: "center" }}>Resource Variance</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", marginBottom: 24 }}>
+            Zone 1 ({results[0].label}) vs Zone 2 ({results[1].label}) — click a count to see its data source
+          </div>
+          {VARIANCE_ROWS.map(({ key, label, color }) => (
+            <VarianceBar
+              key={key}
+              metricKey={key}
+              label={label}
+              color={color}
+              valueA={results[0].counts[key]}
+              valueB={results[1].counts[key]}
+              resultA={results[0]}
+              resultB={results[1]}
+              openSide={openTooltip?.metricKey === key ? openTooltip.side : null}
+              onToggleSide={(side) =>
+                setOpenTooltip((prev) => (prev?.metricKey === key && prev.side === side ? null : { metricKey: key, side }))
+              }
+            />
+          ))}
+        </div>
+      )}
 
       {metrics.length > 0 && (
         <div style={{ maxWidth: 1000, margin: "40px auto 0", background: "var(--bg-primary)", border: "2px solid var(--border-color)", borderRadius: "var(--border-radius)", overflow: "hidden" }}>

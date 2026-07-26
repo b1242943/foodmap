@@ -1,5 +1,39 @@
 import { create } from "zustand";
 
+/**
+ * Static attribution catalog for Compare Zones' resource-count metrics. Not reactive
+ * state — this never changes at runtime, so it's exported as a plain constant rather
+ * than wrapped in the store, alongside the store it's used by.
+ *
+ * `freshness` tells the tooltip UI how to phrase the "as of" line, since each source
+ * carries a genuinely different kind of provenance:
+ *   - "live":     fetched fresh on every search — show the per-search fetchedAt timestamp.
+ *   - "dataYear": a dated annual snapshot — show the real Year value from the source data.
+ *   - "static":   a bundled snapshot with no date encoded in the source data at all —
+ *                 say so plainly instead of inventing a refresh date.
+ */
+export const DATA_SOURCE_META = {
+  markets: {
+    label: "Grocery Markets",
+    sources: [
+      { name: "OpenStreetMap (Overpass API)", url: "https://www.openstreetmap.org/", freshness: "live" },
+      { name: "NYC Open Data — DOHMH Farmers Markets", url: "https://data.cityofnewyork.us/Health/NYC-Farmers-Markets/8vwk-6iz2", freshness: "dataYear" },
+    ],
+  },
+  pantries: {
+    label: "Food Pantries",
+    sources: [
+      { name: "Feeding America", url: "https://www.feedingamerica.org/research", freshness: "static" },
+    ],
+  },
+  snap: {
+    label: "SNAP / EBT Retailers",
+    sources: [
+      { name: "USDA FNS SNAP Retailer Locator", url: "https://www.fns.usda.gov/snap/retailer/historical-data", freshness: "static" },
+    ],
+  },
+};
+
 const DEFAULT_STATS = {
   label: "ZIP 53703 · Madison, WI",
   markets: 8,
@@ -42,10 +76,22 @@ export const useMapStore = create((set, get) => ({
    * actually switches to Dashboard/Resources.
    */
   executiveLocation: null,
+  /**
+   * @type {[Object|null, Object|null]} Compare Zones' per-zone results (counts, distance/
+   * walk-time metrics, and attribution timestamps). Global so the variance bar and data-
+   * source tooltips re-render immediately as each zone's search resolves.
+   */
+  compareResults: [null, null],
 
   setSearchQuery: (query) => set({ searchQuery: query }),
   setLoading: (loading) => set({ loading }),
   setExecutiveLocation: (loc) => set({ executiveLocation: loc }),
+  setCompareResult: (idx, result) =>
+    set((state) => {
+      const next = [...state.compareResults];
+      next[idx] = result;
+      return { compareResults: next };
+    }),
 
   /**
    * Switches the active view. Specifically when leaving Executive Report for

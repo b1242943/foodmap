@@ -209,6 +209,18 @@ export const HEALTH_BUCKS_UNIFORM_MULTIPLIER = 2.0;
  * @returns {Promise<Array>}
  */
 let farmersMarketsCSVCache = null;
+let farmersMarketsDataYear = null;
+
+/**
+ * Returns the dataset year the cached farmers-market rows were filtered to (the real
+ * `Year` column value from the CSV, not a fabricated date), or null before the first
+ * successful load. Used to give attribution tooltips a genuine "as of" reference
+ * instead of inventing a refresh timestamp the source data doesn't actually carry.
+ */
+export function getFarmersMarketsDataYear() {
+  return farmersMarketsDataYear;
+}
+
 export async function loadFarmersMarketsCSV() {
   if (farmersMarketsCSVCache) return farmersMarketsCSVCache;
   return new Promise((resolve, reject) => {
@@ -223,6 +235,7 @@ export async function loadFarmersMarketsCSV() {
           const y = parseInt(r.Year, 10);
           return isNaN(y) ? max : Math.max(max, y);
         }, 0);
+        farmersMarketsDataYear = latestYear || null;
 
         const rejected = [];
         const cleaned = rows
